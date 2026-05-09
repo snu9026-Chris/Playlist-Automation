@@ -1,0 +1,103 @@
+{
+  "title": "Loopify — UI 디자인",
+  "doc_type": "design_spec",
+  "project_name": "Loopify",
+  "phase": "design",
+  "summary": "Loopify는 Loopdrop의 인디고~바이올렛 그라데이션 베이스를 계승하되, AI 음악·쇼츠 도메인에 맞춰 '흐름(Loop)'과 '리듬'을 시각화하는 요소를 추가한다. Pretendard + Inter 조합의 묵직하고 안정적인 타이포그래피와 데스크톱 전용 1280px+ 레이아웃을 유지한다. 파이프라인의 세로 타임라인과 오디오 비주얼라이저 요소를 핵심 시각 identity로 활용한다.",
+  "key_decisions": [
+    "Loopdrop의 보라 그라데이션 테마 계승, 세부 포인트 컬러로 음악·오디오 뉘앙스 추가",
+    "타이포그래피는 Pretendard(한글) + Inter(영문) 유지, 헤드라인은 Semibold 이상 묵직하게",
+    "데스크톱 전용(min-width 1280px), 모바일 대응은 하지 않음",
+    "세로 타임라인과 웨이브폼이 주요 시각 요소 — 단계 상태를 색과 아이콘으로 즉각 식별",
+    "AI 생성 이미지·썸네일은 화면에서 크게 노출해 작업 결과를 즉시 체감하게 함"
+  ],
+  "sections": [
+    {
+      "title": "무드 키워드",
+      "type": "style",
+      "layout": "definition",
+      "key_message": "묵직하고 안정적이되, 리듬감이 느껴지는 전문가 툴",
+      "content": "Loopify는 크리에이터의 제작 공간이자 자동화 엔진이다. 너무 가볍지 않으면서도 각 단계의 진행이 시각적으로 즐거운 UX를 지향한다.",
+      "points": [
+        { "term": "Professional", "explanation": "비즈니스 대시보드의 신뢰감. 과장된 일러스트·그라데이션 남용 지양" },
+        { "term": "Rhythmic", "explanation": "오디오 비주얼라이저·웨이브폼 등 '움직이는' 요소로 리듬감 부여" },
+        { "term": "Focused", "explanation": "단계별 집중을 돕는 명확한 계층 — 현재 작업만 강조, 나머지는 저채도" },
+        { "term": "Purple Aesthetic", "explanation": "Loopdrop과 동일한 인디고~바이올렛 계열. 브랜드 일관성 유지" },
+        { "term": "Deep Night Option", "explanation": "다크 모드는 Phase 2에 도입 — 플레이리스트 감성과 잘 맞음" }
+      ]
+    },
+    {
+      "title": "컬러 팔레트",
+      "type": "style",
+      "layout": "table",
+      "key_message": "인디고~바이올렛 그라데이션 + 상태 컬러 + 오디오 포인트 컬러",
+      "content": "| 용도 | Tailwind 토큰 | HEX | 사용 위치 |\n|---|---|---|---|\n| Primary Gradient | `from-indigo-500 to-violet-500` | `#6366F1 → #8B5CF6` | 로고, CTA 버튼, 헤더 마키 |\n| Primary Solid | `indigo-600` | `#4F46E5` | 기본 버튼, 링크 |\n| Sidebar Active | `bg-indigo-50 text-indigo-700` | `#EEF2FF / #4338CA` | 활성 메뉴 |\n| Background | `white` + pearl overlay | `#FFFFFF` | 메인 배경 |\n| Surface Card | `slate-50` | `#F8FAFC` | 카드 배경 |\n| Border | `slate-200` | `#E2E8F0` | 카드·구분선 |\n| Text Primary | `slate-900` | `#0F172A` | 본문 |\n| Text Muted | `slate-500` | `#64748B` | 부제, 헬프 텍스트 |\n| Success | `emerald-500` | `#10B981` | 완료 단계, 업로드 성공 |\n| Warning | `amber-500` | `#F59E0B` | 토큰 만료 임박, 재시도 대기 |\n| Error | `rose-500` | `#F43F5E` | 업로드 실패, 오류 |\n| Pending | `slate-400` | `#94A3B8` | 잠긴 단계, 대기 |\n| Audio Accent | `fuchsia-500` | `#D946EF` | 웨이브폼, 비주얼라이저 하이라이트 |\n| Visualizer Gradient | `from-fuchsia-500 via-violet-500 to-indigo-500` | — | 썸네일 미리보기, 비주얼라이저 오버레이 |"
+    },
+    {
+      "title": "폰트",
+      "type": "style",
+      "layout": "definition",
+      "key_message": "Pretendard + Inter, 헤드라인은 Semibold 이상",
+      "content": "한글/영문 혼용 시 동일한 굵기·사이즈 유지. 숫자·진행률 표시는 Inter의 tabular-nums 활용.",
+      "points": [
+        { "term": "한글", "explanation": "Pretendard (CDN — `pretendard.css`). 기본 Regular(400), 본문 Medium(500), 헤드라인 Semibold(600)~Bold(700)" },
+        { "term": "영문", "explanation": "Inter (Google Fonts). 동일 굵기 체계. 숫자는 tabular-nums로 고정 폭" },
+        { "term": "크기 스케일", "explanation": "xs 12 / sm 14 / base 16 / lg 18 / xl 20 / 2xl 24 / 3xl 30 / 4xl 36. Tailwind 기본 유지" },
+        { "term": "본문", "explanation": "16px Medium, line-height 1.6. 긴 텍스트(분석 레포트 등)는 24 단위 여백" },
+        { "term": "헤드라인", "explanation": "페이지 제목 30px Bold, 섹션 제목 20px Semibold" },
+        { "term": "코드·기술 용어", "explanation": "`ui-monospace`, SF Mono, Menlo. 인라인 backtick으로 구분" }
+      ]
+    },
+    {
+      "title": "핵심 UI 컴포넌트 패턴",
+      "type": "style",
+      "layout": "cards",
+      "key_message": "파이프라인 타임라인과 웨이브폼이 Loopify 고유 시각 자산",
+      "content": "Loopdrop에 없는 신규 컴포넌트 3종을 새로 디자인한다.",
+      "points": [
+        { "term": "세로 단계 타임라인", "explanation": "좌측 sticky 네비게이터. 각 단계는 원형 인디케이터 + 연결선. 완료(emerald 체크), 진행(indigo 강조 + 펄스 애니메이션), 잠김(slate 자물쇠)" },
+        { "term": "웨이브폼 캔버스", "explanation": "Web Audio API로 다운샘플링한 파형을 canvas에 그림. 자동 선정 구간은 fuchsia 그라데이션으로 하이라이트, 드래그 핸들은 indigo-600" },
+        { "term": "15 슬롯 드롭 그리드", "explanation": "3x5 그리드. 빈 슬롯은 점선 테두리 + 업로드 아이콘, 채워진 슬롯은 파형 썸네일 + 재생 버튼 + 삭제" },
+        { "term": "진행률 바", "explanation": "상단 프로젝트 헤더에 전체 진행률(%). 그라데이션 인디고→바이올렛→푸시아로 흐름감" },
+        { "term": "쇼츠 프리뷰 플레이어", "explanation": "9:16 세로 프리뷰. 하단에 비주얼라이저 오버레이. 자막은 화면 하단 40% 지점" }
+      ]
+    },
+    {
+      "title": "레퍼런스 & 디자인 원칙",
+      "type": "style",
+      "layout": "bullets",
+      "key_message": "Loopdrop 계승 + 음악·오디오 전문 툴 참고",
+      "content": "- **Loopdrop** (https://loopdrop.vercel.app) — 좌측 사이드바 + 콘텐츠 패널, 보라 테마, 펄 효과. 레이아웃·컬러·타이포 전체 계승\n- **Spotify for Artists** — 차트·트렌드 탐색 UI 참고. 카드 그리드와 audio_features 시각화\n- **Riverside / Descript** — 오디오 편집 툴의 웨이브폼·타임라인 패턴 참고\n- **Linear** — 단계별 진행 UI, sticky 사이드 네비게이터, 집중된 정보 계층\n\n**디자인 원칙**\n- 한 화면에 **한 가지 주요 행동**만 강조 (CTA 계층화)\n- 자동화된 결과는 즉시 크게 노출 (이미지, 프리뷰, 웨이브폼)\n- 대기 상태에는 스켈레톤 또는 shimmer, '무엇을 기다리는지' 명시\n- 실패는 즉시 복구 버튼과 함께 — 로그만 남기지 않음"
+    },
+    {
+      "title": "반응형 & 접근성",
+      "type": "style",
+      "layout": "definition",
+      "key_message": "데스크톱 전용, 접근성 기본선 준수",
+      "content": "모바일·태블릿 대응은 하지 않지만, 키보드 네비게이션과 색약 대응 같은 접근성 기본 요소는 준수한다.",
+      "points": [
+        { "term": "Breakpoint", "explanation": "min-width 1280px — 그 미만은 '데스크톱에서 이용해 주세요' 안내 화면" },
+        { "term": "키보드 네비게이션", "explanation": "단계 이동은 Tab + Enter. 마법사 Step 전환은 ←/→ 화살표 지원" },
+        { "term": "색약 대응", "explanation": "상태는 컬러 + 아이콘 이중 표현. Success는 체크, Error는 X, Pending은 자물쇠" },
+        { "term": "모션 저감", "explanation": "`prefers-reduced-motion` 시 펄스·마키 애니메이션 중지" },
+        { "term": "포커스 링", "explanation": "`ring-indigo-500` 2px, 항상 표시" }
+      ]
+    }
+  ],
+  "dev_notes": {
+    "claude_prompt_hint": "Tailwind CSS 4 기준으로 디자인 토큰을 CSS 변수로 정의하고, 전역 스타일에 Pretendard·Inter를 로드한다. 컴포넌트는 shadcn/ui 베이스를 쓰되 컬러 토큰은 Loopify 팔레트로 오버라이드한다. 웨이브폼과 15슬롯 그리드는 커스텀 컴포넌트로 구현하며, Loopdrop에 동일 컴포넌트가 없으므로 재사용 불가.",
+    "dependencies": [
+      "Pretendard CDN",
+      "Inter (Google Fonts)",
+      "Tailwind CSS 4",
+      "shadcn/ui (베이스 컴포넌트)",
+      "Lucide icons"
+    ],
+    "risks": [
+      "Loopdrop과 동일한 Supabase·OAuth를 쓰지만 브랜드 구분이 약하면 사용자가 혼동 가능 — 헤더 로고·이름 명확히 분리",
+      "웨이브폼 canvas 렌더링이 고해상도 디스플레이에서 느릴 수 있음 — devicePixelRatio 기반 최적화 필요",
+      "세로 타임라인이 길어져 스크롤 피로 — sticky 네비와 자동 접기로 완화"
+    ]
+  },
+  "tags": ["Loopify", "design", "design_spec", "purple-gradient", "pretendard", "desktop-only"]
+}

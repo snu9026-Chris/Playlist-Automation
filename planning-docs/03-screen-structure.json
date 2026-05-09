@@ -1,0 +1,119 @@
+{
+  "title": "Loopify — 화면 기획",
+  "doc_type": "screen_structure",
+  "project_name": "Loopify",
+  "phase": "screen",
+  "summary": "Loopify는 대시보드·트렌드 탐색·새 프로젝트·프로젝트 상세 4개 페이지로 구성된다. 좌측 사이드바 고정 + 우측 콘텐츠 스크롤의 Loopdrop 레이아웃 패턴을 계승하되, 프로젝트 상세는 8단계 세로 타임라인이라는 고유 패턴을 도입한다. 화면 간 이동은 트렌드 북마크가 새 프로젝트 마법사로 흐르는 데이터 연결 경로를 중심으로 설계된다.",
+  "key_decisions": [
+    "페이지는 4개(`/`, `/explore`, `/new`, `/projects/[id]`)로 최소화",
+    "사이드바 고정형, 데스크톱 전용(min-width 1280px)",
+    "프로젝트 상세는 세로 타임라인 — 단계별 unlock과 완료 섹션 접기 패턴",
+    "트렌드 탐색 → 새 프로젝트 흐름은 `track_bookmarks` 테이블을 매개로 상시 연결",
+    "롱폼 섹션은 '준비 중' 배지와 함께 미리 노출, 레이아웃 자리만 확보"
+  ],
+  "sections": [
+    {
+      "title": "전체 페이지 맵",
+      "type": "overview",
+      "layout": "steps",
+      "key_message": "4개 페이지, 좌측 사이드바 네비게이션",
+      "content": "1. **`/` 대시보드** — 프로젝트 리스트, YouTube 연결 상태, 빠른 액션\n2. **`/explore` 트렌드 탐색** — Spotify 차트·playlist 브라우징, 북마크\n3. **`/new` 새 프로젝트 마법사** — 3단계(레퍼런스 → 분석 → 프롬프트)\n4. **`/projects/[id]` 프로젝트 상세** — 8단계 파이프라인 세로 타임라인\n\n**사이드바 메뉴 순서**\n1. 대시보드\n2. 트렌드 탐색\n3. 프로젝트 (하위에 진행 중인 프로젝트 3개 노출)\n4. 새 프로젝트 (CTA 버튼 스타일)\n5. 설정 (Phase 2)"
+    },
+    {
+      "title": "공통 레이아웃",
+      "type": "wireframe",
+      "layout": "cards",
+      "key_message": "사이드바 고정 + 콘텐츠 영역 스크롤",
+      "content": "모든 페이지는 동일한 상하·좌우 프레임을 공유하며, 콘텐츠 영역만 교체된다.",
+      "points": [
+        { "term": "Header (고정)", "explanation": "Loopify 로고 + 보라 그라데이션 마키 텍스트, YouTube 연결 상태 아이콘" },
+        { "term": "Sidebar (좌측 고정 240px)", "explanation": "메뉴 리스트, 활성 항목은 `bg-indigo-50 text-indigo-700`. 하단에 진행 중 프로젝트 3개 미니 카드" },
+        { "term": "Content Area (우측 스크롤)", "explanation": "페이지별 콘텐츠. 최대 너비 제한 없음(1280px 이상 전체 활용)" },
+        { "term": "Toast 알림", "explanation": "업로드 완료·실패·이미지 생성 완료 등 비동기 이벤트는 우측 하단 토스트로 표시" }
+      ]
+    },
+    {
+      "title": "대시보드 (`/`) 와이어프레임",
+      "type": "wireframe",
+      "layout": "cards",
+      "key_message": "프로젝트 현황과 YouTube 상태를 한눈에",
+      "content": "첫 진입 화면. 운영 허브 역할을 하며, 진행 중 프로젝트와 완료된 프로젝트를 나눠 노출한다.",
+      "points": [
+        { "term": "상단 배너", "explanation": "YouTube 계정 연결 상태 + 토큰 만료 경고 + '재연결' 버튼" },
+        { "term": "빠른 액션", "explanation": "'새 프로젝트 시작' + '트렌드 탐색' 두 개의 큰 CTA 카드" },
+        { "term": "진행 중 프로젝트 섹션", "explanation": "카드 그리드. 테마, 현재 단계, 진행률 바, 썸네일 미리보기, 업로드된 쇼츠 수(7/15)" },
+        { "term": "완료 프로젝트 섹션", "explanation": "카드 그리드. 유튜브 링크 15개, 총 조회수(Phase 2)" },
+        { "term": "오늘 예약 업로드", "explanation": "Cron이 오늘 실행할 업로드 목록. 시간·곡명·상태" }
+      ]
+    },
+    {
+      "title": "트렌드 탐색 (`/explore`) 와이어프레임",
+      "type": "wireframe",
+      "layout": "cards",
+      "key_message": "Spotify 데이터 탐색 + 북마크",
+      "content": "좌측에 필터, 우측에 결과 그리드. 북마크한 곡은 상단 고정 영역에 누적 표시.",
+      "points": [
+        { "term": "상단 북마크 바", "explanation": "담은 곡들이 칩 형태로 누적. 클릭 해제, '이 북마크로 프로젝트 시작' CTA 버튼" },
+        { "term": "좌측 필터 패널", "explanation": "국가(다중 선택) / 카테고리 / 무드(Chill·Jazz·Lofi 등) / BPM 범위" },
+        { "term": "결과 카드 그리드", "explanation": "앨범아트 + 제목 + 아티스트 + BPM·에너지 막대 + 미리듣기 버튼 + '담기' 버튼" },
+        { "term": "검색바", "explanation": "트랙명·아티스트 직접 검색. Spotify 검색 API 연동" },
+        { "term": "차트 탭", "explanation": "Top 50 KR / US / JP / Global / Viral 등 바로가기 탭" }
+      ]
+    },
+    {
+      "title": "새 프로젝트 (`/new`) 마법사 와이어프레임",
+      "type": "wireframe",
+      "layout": "cards",
+      "key_message": "3단계 진행 표시, 이전 단계로 자유 이동",
+      "content": "상단에 Stepper 진행 표시. 각 Step은 독립 영역으로 표시되며, 확정 시 다음 Step이 unlock된다.",
+      "points": [
+        { "term": "Step 1. 레퍼런스 선정", "explanation": "북마크 목록 좌측 + 검색바 상단 + 선정된 3~10곡 우측 리스트. 테마 키워드 입력란. '다음' 버튼" },
+        { "term": "Step 2. 인기 구조 분석", "explanation": "GPT 분석 로딩 → 결과 레포트(왜 잘되는가, 공통 패턴, 추천 테마 방향). 테마 수정 input. '다음' 버튼" },
+        { "term": "Step 3. 프롬프트 15개", "explanation": "15개 프롬프트 카드 그리드. 개별 편집 / 개별 재생성 / 일괄 재생성 / 전체 초기화 버튼. '프로젝트 생성' 버튼" },
+        { "term": "Stepper", "explanation": "상단에 1·2·3 원형 인디케이터. 완료 단계는 체크 표시, 현재 단계는 보라 강조, 이후 단계는 회색" }
+      ]
+    },
+    {
+      "title": "프로젝트 상세 (`/projects/[id]`) ⭐ 핵심",
+      "type": "wireframe",
+      "layout": "cards",
+      "key_message": "세로 타임라인으로 8단계 진행 + 롱폼 자리 확보",
+      "content": "좌측에 단계 네비게이션(sticky), 우측에 실제 작업 영역. 완료된 단계는 자동 접힘, 현재 단계는 강조 확장.",
+      "points": [
+        { "term": "상단 헤더", "explanation": "테마명, 생성일, 전체 진행률, 레퍼런스 칩 목록, '프로젝트 삭제' 메뉴" },
+        { "term": "좌측 단계 네비게이터 (sticky)", "explanation": "1~8 단계 + 롱폼 섹션. 완료/진행/잠김 3가지 상태 아이콘. 클릭 시 해당 섹션으로 스크롤" },
+        { "term": "① 프롬프트 섹션", "explanation": "15개 카드 그리드. '복사' + 'Suno 열기' + 체크박스. 15/15 체크 시 자동 접힘" },
+        { "term": "② Suno 업로드 섹션", "explanation": "15슬롯 드롭존 그리드. 파일 다중 드롭 시 순서대로 매칭. 각 슬롯 재생 버튼 + 삭제 버튼" },
+        { "term": "③ 클라이맥스 섹션", "explanation": "곡당 웨이브폼 캔버스. 자동 선정 구간 하이라이트. 드래그로 이동, '자동 재추출' 버튼" },
+        { "term": "④ 이미지 섹션", "explanation": "곡당 Nano Banana 이미지 카드. 각 카드마다 '재생성' 버튼. 그리드 3x5" },
+        { "term": "⑤ 렌더링 섹션", "explanation": "15개 쇼츠 렌더링 진행 바. 완료 시 20초 프리뷰 플레이어 inline" },
+        { "term": "⑥ 썸네일 & 메타데이터 섹션", "explanation": "곡별 편집 카드. 썸네일 프리뷰 + 제목/설명/태그 input(GPT 초안). 개별 편집·재생성" },
+        { "term": "⑦ 발행 모드 섹션", "explanation": "'즉시 일괄' / '예약 자동' 토글. 예약 선택 시 시작일·주기 선택 폼" },
+        { "term": "⑧ 업로드 섹션", "explanation": "15개 업로드 카드. 상태(대기/업로드 중/완료/실패) + 유튜브 링크 + 실패 시 재시도 버튼" },
+        { "term": "🎬 롱폼 섹션 (Phase 2)", "explanation": "'준비 중' 배지와 함께 비활성화된 카드. '같은 15곡으로 45분 롱폼 생성' 설명" }
+      ]
+    },
+    {
+      "title": "주요 플로우",
+      "type": "flow",
+      "layout": "table",
+      "key_message": "북마크가 프로젝트로 흐르는 데이터 경로",
+      "content": "| From | Action | To | 데이터 전달 |\n|---|---|---|---|\n| `/` 대시보드 | '새 프로젝트' CTA 클릭 | `/new` | 빈 마법사 진입 |\n| `/` 대시보드 | 진행 중 프로젝트 카드 클릭 | `/projects/[id]` | 프로젝트 ID |\n| `/explore` | 곡 '담기' 버튼 | Supabase `track_bookmarks` | 영구 저장 |\n| `/explore` | '이 북마크로 프로젝트 시작' | `/new?from=bookmarks` | 북마크 자동 로드 |\n| `/new` Step 1 | '다음' | Step 2 GPT 분석 로딩 | 레퍼런스 배열 |\n| `/new` Step 3 | '프로젝트 생성' | `/projects/[id]` | 새 프로젝트 row + 프롬프트 15개 |\n| `/projects/[id]` ② Suno 업로드 완료 | 자동 unlock | `/projects/[id]` ③ 클라이맥스 | `playlist_tracks.mp3_url` |\n| `/projects/[id]` ⑦ 예약 발행 | 확정 | Vercel Cron이 순차 실행 | `scheduled_uploads` rows |\n| `/projects/[id]` ⑧ 업로드 완료 | 상태 변경 | `/` 대시보드 | `shorts_youtube_urls[]` 업데이트 |"
+    }
+  ],
+  "dev_notes": {
+    "claude_prompt_hint": "Next.js App Router 기준으로 `/app/page.tsx`, `/app/explore/page.tsx`, `/app/new/page.tsx`, `/app/projects/[id]/page.tsx` 4개 라우트를 구현한다. 공통 레이아웃은 `/app/layout.tsx`에 Sidebar + Header를 두고 Outlet으로 페이지를 교체한다. 프로젝트 상세 페이지는 서버 컴포넌트로 초기 데이터 로드 + 클라이언트 컴포넌트로 단계별 상호작용을 분리한다.",
+    "dependencies": [
+      "Next.js 16 App Router",
+      "Supabase Realtime 구독 (파이프라인 진행 상태 반영)",
+      "Web Audio API + canvas (웨이브폼 UI)",
+      "react-dropzone (Suno 파일 드래그 드롭)"
+    ],
+    "risks": [
+      "세로 타임라인이 길어져 UX 피로도 증가 — 접기/펼치기 기본 동작을 정교하게 설계",
+      "Supabase Realtime 동시 구독 한계 (프로젝트 여러 개 동시 진행 시)",
+      "웨이브폼 렌더링이 긴 mp3에서 메모리 초과 가능 — 오디오 다운샘플링 필요"
+    ]
+  },
+  "tags": ["Loopify", "screen", "screen_structure", "wireframe", "pipeline", "timeline"]
+}

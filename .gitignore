@@ -1,0 +1,55 @@
+# 의존성
+node_modules/
+**/node_modules/
+
+# 빌드 산출물
+.next/
+**/.next/
+dist/
+**/dist/
+out/
+**/out/
+*.tsbuildinfo
+
+# 환경변수 (실제 키) — 가이드인 env.local.md / *.example 은 트래킹 허용
+.env
+.env.*
+!.env.example
+!.env.*.example
+!*.env.example
+
+# 렌더된 비디오·이미지 산출물
+output/
+*.mp4
+*.mov
+*.webm
+
+# 로그
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 에디터·OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code 로컬 세션 설정
+.claude/
+
+# Vercel
+.vercel/
+
+# 백업된 inner git (mono-repo로 합치며 보존용으로 남김)
+**/.git.backup/
+
+# 과외/클래스 홍보 자료 (개인 자료, 공개 제외)
+CLASS_PAGE_DESIGN_PROMPT.md
+class-page-loopify*.html
+instagram-feed*.html
+instagram-square.html
+thumbnail*.html
+part3-기획.html
+part4-실전돌입.html

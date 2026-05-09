@@ -1,0 +1,130 @@
+{
+  "title": "Loopify — 기능 기획",
+  "doc_type": "feature_spec",
+  "project_name": "Loopify",
+  "phase": "feature",
+  "summary": "Loopify의 기능은 트렌드 탐색·프로젝트 생성 마법사·파이프라인 진행·발행 4개 축으로 구성된다. 하나의 프로젝트는 Spotify 레퍼런스 선정에서 시작해 쇼츠 15개 유튜브 업로드로 종결되는 8단계 파이프라인을 따른다. 롱폼은 DB 스키마와 UI 섹션만 선확보하고 Phase 2에 로직을 채운다.",
+  "key_decisions": [
+    "파이프라인은 트렌드→레퍼런스→분석→프롬프트→Suno 업로드→이미지→합성→메타데이터→업로드 순의 단방향 진행",
+    "쇼츠 발행은 '즉시 일괄'과 '예약 자동' 두 모드 제공, 예약은 Vercel Cron Jobs로 하루 1~2개 분산",
+    "클라이맥스 추출은 ffmpeg RMS 자동 선정 + 웨이브폼 UI 미세조정 조합",
+    "Loopdrop Supabase의 `platforms` 테이블을 읽기 공유, Loopify 전용 테이블 3개(track_bookmarks, playlist_projects, playlist_tracks) 추가",
+    "롱폼 스키마는 지금 포함(longform_status 등), 실제 로직은 Phase 2"
+  ],
+  "sections": [
+    {
+      "title": "핵심 기능 4개 섹션",
+      "type": "overview",
+      "layout": "cards",
+      "key_message": "탐색 → 생성 → 실행 → 발행의 선형 구조",
+      "content": "Loopify는 사용자가 좌측 사이드바를 따라 이동하며 프로젝트를 진행하는 단방향 구조이다.",
+      "points": [
+        { "term": "트렌드 탐색", "explanation": "Spotify 멀티 국가 차트·에디토리얼 playlist 브라우징, 레퍼런스 곡 북마크. 언제든 접근 가능한 상시 영감 저장소 역할.", "priority": "must" },
+        { "term": "새 프로젝트 마법사", "explanation": "레퍼런스 선정 → GPT 분석 → Suno 프롬프트 15개 생성 3단계. 북마크와 연결되며 프로젝트 생성 시 레퍼런스가 스냅샷으로 박제.", "priority": "must" },
+        { "term": "프로젝트 파이프라인", "explanation": "프로젝트 상세 페이지에서 8단계 파이프라인을 세로 타임라인으로 진행. 이전 단계 완료 시 다음 단계 unlock.", "priority": "must" },
+        { "term": "쇼츠 발행", "explanation": "즉시 일괄 또는 예약 분산 모드 선택. YouTube Resumable Upload로 브라우저에서 직접 전송.", "priority": "must" }
+      ]
+    },
+    {
+      "title": "트렌드 탐색 기능",
+      "type": "spec",
+      "layout": "cards",
+      "key_message": "Spotify 데이터를 영감 저장소로 전환",
+      "content": "Spotify Web API의 client_credentials 플로우로 공개 데이터 접근. 인증 없이 차트·playlist·audio_features 조회.",
+      "points": [
+        { "term": "멀티 국가 차트", "explanation": "글로벌 + KR/US/JP 등 5~10개국 Top 50 플레이리스트 동시 조회. 국가 필터로 개별 열람.", "priority": "must" },
+        { "term": "장르/무드 필터", "explanation": "Spotify 카테고리(Chill, Lofi, Jazz 등) 기반 에디토리얼 playlist 탐색.", "priority": "should" },
+        { "term": "곡 미리듣기", "explanation": "`preview_url` 30초 재생. 재생 컨트롤은 카드 내 인라인.", "priority": "must" },
+        { "term": "레퍼런스 담기", "explanation": "마음에 드는 곡을 `track_bookmarks` 테이블에 저장. 영구 보관, 개별 해제 가능.", "priority": "must" },
+        { "term": "audio_features 시각화", "explanation": "BPM·에너지·댄스성·무드(valence) 막대그래프. 프롬프트 분석 단계의 입력값.", "priority": "should" }
+      ]
+    },
+    {
+      "title": "새 프로젝트 마법사 (3 Step)",
+      "type": "flow",
+      "layout": "cards",
+      "key_message": "레퍼런스에서 출발해 Suno 프롬프트로 착지",
+      "content": "프로젝트 생성은 3단계 마법사로 진행되며, 마지막 단계에서 DB에 `playlist_projects` row가 생성된다.",
+      "points": [
+        { "term": "Step 1. 레퍼런스 선정", "explanation": "북마크 목록 + 직접 검색으로 3~10곡 확정. 테마 키워드 입력란 제공.", "priority": "must" },
+        { "term": "Step 2. 인기 구조 분석", "explanation": "GPT가 레퍼런스의 audio_features·제목·가사 패턴을 분석해 '왜 잘되는가' 레포트 생성. 테마 방향 수정 가능.", "priority": "must" },
+        { "term": "Step 3. 프롬프트 15개 생성", "explanation": "Suno 프롬프트 15개(3분 기준) 생성. 개별 수정 / 일괄 재생성 / 통째 초기화 지원.", "priority": "must" },
+        { "term": "프로젝트 저장", "explanation": "확정 시 레퍼런스 스냅샷·프롬프트 15개·테마 정보가 `playlist_projects`에 저장되고 프로젝트 상세로 이동.", "priority": "must" }
+      ]
+    },
+    {
+      "title": "프로젝트 파이프라인 (8 단계)",
+      "type": "flow",
+      "layout": "cards",
+      "key_message": "세로 타임라인으로 진행하는 단방향 파이프라인",
+      "content": "각 단계는 이전 단계 완료 시 자동으로 unlock된다. 현재 단계는 강조 표시되고, 완료된 단계는 접혔다가 클릭 시 펼칠 수 있다.",
+      "points": [
+        { "term": "① 프롬프트 카드", "explanation": "15개 프롬프트가 그리드로 표시. '복사' + 'Suno 열기' 버튼. 완료 체크.", "priority": "must" },
+        { "term": "② Suno 음원 업로드", "explanation": "15슬롯 드롭존. 다중 파일 드롭 시 순서대로 자동 매칭. 7/15 진행률 바.", "priority": "must" },
+        { "term": "③ 클라이맥스 추출", "explanation": "ffmpeg RMS로 20초 구간 자동 선정. 웨이브폼 UI에서 드래그로 조정 가능.", "priority": "must" },
+        { "term": "④ 이미지 생성", "explanation": "Nano Banana로 곡당 세로(1080x1920) 이미지 1장씩 총 15장 생성. 재생성 버튼.", "priority": "must" },
+        { "term": "⑤ 쇼츠 렌더링", "explanation": "ffmpeg로 15개 쇼츠 병렬 합성. 이미지 + 20초 오디오 + 비주얼라이저 + 자막.", "priority": "must" },
+        { "term": "⑥ 썸네일 & 메타데이터", "explanation": "Nano Banana 배경 + ffmpeg drawtext 제목. GPT로 제목/설명/태그 자동 생성, 수정 가능.", "priority": "must" },
+        { "term": "⑦ 발행 모드 선택", "explanation": "즉시 일괄 / 예약 자동 토글. 예약 시 시작일과 주기 지정.", "priority": "must" },
+        { "term": "⑧ 업로드 실행", "explanation": "YouTube Resumable Upload. 즉시 모드는 브라우저 직행, 예약 모드는 Cron Jobs가 처리.", "priority": "must" }
+      ]
+    },
+    {
+      "title": "쇼츠 발행 모드 2종",
+      "type": "spec",
+      "layout": "cards",
+      "key_message": "즉시 일괄과 예약 분산 둘 다 지원",
+      "content": "단일 프로젝트 내에서 한 가지 모드를 선택해 15개를 처리한다. 예약 모드는 Vercel Cron Jobs + `scheduled_uploads` 테이블로 구현.",
+      "points": [
+        { "term": "즉시 일괄 발행", "explanation": "'발행!' 버튼 한 번으로 15개 동시 업로드. Promise.allSettled로 병렬 처리, 실패 항목은 재시도 버튼 노출.", "priority": "must" },
+        { "term": "예약 자동 발행", "explanation": "시작일 + 주기(하루 1개 / 하루 2개 / 매시간) 지정. scheduled_uploads에 15개 row 저장. Cron이 매시간 조회·실행.", "priority": "must" },
+        { "term": "진행 모니터링", "explanation": "예약 모드는 '7/15 업로드됨, 다음: 내일 09:00' 형태로 진행 상황 표시. 개별 예약 취소·재조정 가능.", "priority": "should" },
+        { "term": "실패 복구", "explanation": "업로드 실패 시 에러 로그 저장, 자동 1회 재시도. 재시도 실패 시 사용자 알림.", "priority": "should" }
+      ]
+    },
+    {
+      "title": "우선순위 매트릭스",
+      "type": "priority",
+      "layout": "table",
+      "key_message": "Phase 1은 쇼츠 파이프라인 전 구간 Must",
+      "content": "| 기능 | 우선순위 | Phase |\n|---|---|---|\n| 트렌드 탐색 (Spotify) | 🔴 Must | 1 |\n| 레퍼런스 북마크 | 🔴 Must | 1 |\n| 프로젝트 생성 마법사 | 🔴 Must | 1 |\n| GPT 분석 + 프롬프트 15개 | 🔴 Must | 1 |\n| Suno 음원 업로드 UI | 🔴 Must | 1 |\n| 클라이맥스 RMS 자동 추출 | 🔴 Must | 1 |\n| 웨이브폼 수정 UI | 🟡 Should | 1 |\n| Nano Banana 이미지 생성 | 🔴 Must | 1 |\n| 쇼츠 ffmpeg 렌더링 | 🔴 Must | 1 |\n| 썸네일 합성 | 🔴 Must | 1 |\n| 메타데이터 자동 생성 | 🔴 Must | 1 |\n| 즉시 일괄 발행 | 🔴 Must | 1 |\n| 예약 자동 발행 (Cron) | 🔴 Must | 1 |\n| 업로드 실패 재시도 | 🟡 Should | 1 |\n| 롱폼 45분 영상 렌더·업로드 | 🟡 Should | 2 |\n| Vercel Sandbox 검토 | 🟡 Should | 2 |\n| 유튜브 Analytics 대시보드 | 🟢 Could | 2 |\n| 프롬프트 라이브러리 저장 | 🟢 Could | 2 |"
+    },
+    {
+      "title": "외부 연동",
+      "type": "spec",
+      "layout": "definition",
+      "key_message": "필요한 외부 키는 5종",
+      "content": "환경변수는 `.env.local`과 Vercel Dashboard에 동일하게 세팅. Supabase만 Loopdrop 프로젝트를 공유하고 나머지는 Loopify 전용으로 발급.",
+      "points": [
+        { "term": "Supabase", "explanation": "Loopdrop과 같은 프로젝트. URL / anon key / service role key 재사용." },
+        { "term": "Google Cloud OAuth (YouTube)", "explanation": "Loopdrop에 등록된 OAuth 앱 Client ID/Secret 재사용. 토큰은 platforms 테이블에서 조회." },
+        { "term": "Spotify Web API", "explanation": "신규 앱 등록. Client ID/Secret로 client_credentials 토큰 발급." },
+        { "term": "Google AI Studio (Nano Banana)", "explanation": "Gemini 2.5 Flash Image API 키." },
+        { "term": "OpenAI", "explanation": "gpt-4o-mini 사용. 프롬프트·분석·메타데이터 전용." }
+      ]
+    },
+    {
+      "title": "데이터 모델 (추가 테이블 3개)",
+      "type": "spec",
+      "layout": "table",
+      "key_message": "Loopdrop 기존 테이블 공유 + Loopify 전용 3개 신설",
+      "content": "| 엔티티 | 주요 필드 | 비고 |\n|---|---|---|\n| `platforms` (공유) | oauth_token, refresh_token, expires_at | Loopdrop과 공유, YouTube 행만 읽음 |\n| `track_bookmarks` (신규) | spotify_track_id, title, artist, preview_url, image_url, audio_features(json), notes | 영감 저장소 |\n| `playlist_projects` (신규) | id, theme, status, reference_tracks(json), prompts(json), shorts_status, shorts_youtube_urls[], longform_status, longform_youtube_url, created_at | 프로젝트 본체. 롱폼 필드는 Phase 2 공간 확보 |\n| `playlist_tracks` (신규) | project_id, slot_index(1~15), prompt, mp3_url, image_url, clip_start, clip_end, short_mp4_url, short_youtube_url, upload_status | 슬롯별 진행 상태 추적 |\n| `scheduled_uploads` (신규) | project_id, track_id, scheduled_at, status, retry_count | Cron이 조회하는 예약 큐 |"
+    }
+  ],
+  "dev_notes": {
+    "claude_prompt_hint": "파이프라인 단계를 구현할 때 각 단계는 독립된 API Route + Supabase 상태 업데이트로 구성한다. 이전 단계 완료 여부는 `playlist_tracks.*_status` 플래그로 검증하고, 프론트엔드는 Supabase Realtime 구독 또는 폴링으로 UI를 갱신한다. 롱폼 관련 필드(`longform_*`)는 스키마에만 선언하고 실제 API Route는 작성하지 않는다.",
+    "dependencies": [
+      "Loopdrop 프로젝트의 Supabase 스키마 파악",
+      "Vercel Cron Jobs 설정 (`vercel.json`)",
+      "`@ffmpeg-installer/ffmpeg` + `fluent-ffmpeg` 라이브러리",
+      "`googleapis` 또는 YouTube Data API v3 직접 호출"
+    ],
+    "risks": [
+      "예약 업로드 Cron과 즉시 업로드가 동시 트리거될 때의 충돌",
+      "Supabase 공유 테이블(platforms) 변경 시 Loopdrop에 영향",
+      "Nano Banana 이미지 생성 실패 시 파이프라인 중단",
+      "15개 병렬 ffmpeg 렌더링 시 Vercel 동시 실행 한계 도달"
+    ]
+  },
+  "tags": ["Loopify", "feature", "feature_spec", "pipeline", "shorts", "automation"]
+}
