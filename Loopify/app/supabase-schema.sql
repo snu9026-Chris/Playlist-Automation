@@ -81,8 +81,18 @@ CREATE INDEX idx_tracks_upload_status ON playlist_tracks(upload_status);
 -- ═══════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS scheduled_uploads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES playlist_projects(id) ON DELETE CASCADE,
-  track_id UUID NOT NULL REFERENCES playlist_tracks(id) ON DELETE CASCADE,
+  -- project_id/track_id는 매칭됐을 때만 채움 (드롭한 파일이 매칭 안 되면 null)
+  project_id UUID REFERENCES playlist_projects(id) ON DELETE CASCADE,
+  track_id UUID REFERENCES playlist_tracks(id) ON DELETE CASCADE,
+  -- Supabase Storage(media bucket) 내 영상 파일 경로 (예: scheduled/{uuid}.mp4)
+  video_path TEXT,
+  -- YouTube 메타데이터 (cron이 업로드 시 사용)
+  title TEXT,
+  description TEXT,
+  tags TEXT[] DEFAULT '{}',
+  first_comment TEXT,
+  -- 발행 결과
+  youtube_video_id TEXT,
   scheduled_at TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),

@@ -19,12 +19,18 @@ import {
 import { useYouTubeAuth } from "@/hooks/useYouTubeAuth";
 import { youtubeApi } from "@/lib/api/youtube";
 import { apiFetchSafe } from "@/lib/api/client";
+import { createBrowserClient } from "@/lib/supabase";
+
+// 예약 발행 시각 — vercel.json cron이 매일 09:00 UTC(=KST 18:00)에 실행되므로 동일 시각으로 박는다.
+// cron 시간을 바꾸면 vercel.json + 여기 둘 다 같이 갱신할 것.
+const SCHEDULED_PUBLISH_HOUR_UTC = 9;
 
 interface UploadedFile {
   file: File;
   name: string;
   status: "ready" | "uploading" | "done" | "failed";
   youtubeUrl?: string;
+  scheduledAt?: string; // 예약 등록 후 표시용 ISO timestamp
   // 메타데이터 (Supabase 매칭 or 수동 입력)
   title: string;
   description: string;
@@ -39,7 +45,6 @@ export default function UploadsPage() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [mode, setMode] = useState<"instant" | "scheduled">("instant");
   const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleInterval, setScheduleInterval] = useState("daily1");
   const [publishing, setPublishing] = useState(false);
   const [publishedCount, setPublishedCount] = useState(0);
   const { connected: ytConnected } = useYouTubeAuth();
@@ -110,17 +115,12 @@ export default function UploadsPage() {
   const readyCount = files.filter((f) => f.status === "ready").length;
   const doneCount = files.filter((f) => f.status === "done").length;
 
-  // 발행 — 서버에서 resumable session URL만 받아 브라우저는 PUT만 수행 (access_token 노출 없음)
-  const publish = async () => {
-    if (!ytConnected) { alert("YouTube 연결이 필요합니다"); return; }
-    setPublishing(true);
-    setPublishedCount(0);
-
+  // 즉시 발행 — 서버에서 resumable session URL만 받아 브라우저는 PUT만 수행 (access_token 노출 없음)
+  const publishInstant = async () => {
     for (const uf of files.filter((f) => f.status === "ready")) {
       updateFile(uf.name, { status: "uploading" });
 
       try {
-        // 1. 서버에서 resumable session URL 발급 (access_token은 서버에만)
         const { uploadSessionUrl } = await youtubeApi.initUpload({
           title: uf.title,
           description: uf.description,
@@ -134,7 +134,6 @@ export default function UploadsPage() {
           continue;
         }
 
-        // 2. 파일 업로드 (브라우저 → resumable session URL, Authorization 헤더 불필요)
         const uploadRes = await fetch(uploadSessionUrl, {
           method: "PUT",
           headers: { "Content-Type": "video/mp4" },
@@ -151,7 +150,6 @@ export default function UploadsPage() {
         const uploadData = await uploadRes.json();
         const videoId = uploadData.id;
 
-        // 3. 첫 댓글 (서버 경유 — 토큰은 서버에만)
         if (uf.firstComment && videoId) {
           await youtubeApi.comment(videoId, uf.firstComment).catch((e) => {
             console.error("YouTube comment error:", e);
@@ -167,6 +165,78 @@ export default function UploadsPage() {
         updateFile(uf.name, { status: "failed" });
       }
       setPublishedCount((c) => c + 1);
+    }
+  };
+
+  /**
+   * 예약 등록 — 각 파일을 Supabase Storage에 올린 뒤 scheduled_uploads 테이블에 row INSERT.
+   * 실제 YouTube 업로드는 vercel.json cron(/api/cron/upload)이 정해진 시각에 처리.
+   * 시작일부터 하루 1개씩, cron 시각(SCHEDULED_PUBLISH_HOUR_UTC)에 발행.
+   */
+  const registerSchedules = async () => {
+    const supabaseBrowser = createBrowserClient();
+    const readyFiles = files.filter((f) => f.status === "ready");
+
+    // 시작일 + cron 시각 (KST 18:00 = UTC 09:00 기본). 예: scheduleDate="2026-05-12" → 2026-05-12T09:00:00Z
+    const baseDate = new Date(`${scheduleDate}T00:00:00Z`);
+    baseDate.setUTCHours(SCHEDULED_PUBLISH_HOUR_UTC, 0, 0, 0);
+
+    for (let i = 0; i < readyFiles.length; i++) {
+      const uf = readyFiles[i];
+      updateFile(uf.name, { status: "uploading" });
+
+      try {
+        // 1. Supabase Storage 업로드 (파일명 충돌 방지 위해 UUID prefix)
+        const path = `scheduled/${crypto.randomUUID()}.mp4`;
+        const { error: uploadError } = await supabaseBrowser.storage
+          .from("media")
+          .upload(path, uf.file, { contentType: "video/mp4" });
+        if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
+
+        // 2. 예약 시각 = 시작일 + (i × 24h)
+        const scheduledAt = new Date(baseDate.getTime() + i * 86_400_000).toISOString();
+
+        // 3. scheduled_uploads INSERT
+        const res = await fetch("/api/uploads/scheduled", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            videoPath: path,
+            title: uf.title,
+            description: uf.description,
+            tags: uf.tags,
+            firstComment: uf.firstComment,
+            scheduledAt,
+          }),
+        });
+        if (!res.ok) throw new Error(`Schedule register failed: ${res.statusText}`);
+
+        updateFile(uf.name, { status: "done", scheduledAt });
+      } catch (e: any) {
+        console.error("Schedule error:", e);
+        updateFile(uf.name, { status: "failed" });
+      }
+      setPublishedCount((c) => c + 1);
+    }
+  };
+
+  const publish = async () => {
+    if (mode === "scheduled" && !scheduleDate) {
+      alert("발행 시작일을 선택해주세요");
+      return;
+    }
+    if (mode === "instant" && !ytConnected) {
+      alert("YouTube 연결이 필요합니다");
+      return;
+    }
+
+    setPublishing(true);
+    setPublishedCount(0);
+
+    if (mode === "scheduled") {
+      await registerSchedules();
+    } else {
+      await publishInstant();
     }
 
     setPublishing(false);
@@ -215,7 +285,12 @@ export default function UploadsPage() {
                     <Film className="w-5 h-5 text-indigo-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{uf.name}</p>
-                      {uf.matched && <p className="text-[10px] text-emerald-500">✓ 곡 정보 매칭됨</p>}
+                      {uf.matched && !uf.scheduledAt && <p className="text-[10px] text-emerald-500">✓ 곡 정보 매칭됨</p>}
+                      {uf.scheduledAt && (
+                        <p className="text-[10px] text-indigo-500">
+                          예약: {new Date(uf.scheduledAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+                        </p>
+                      )}
                     </div>
 
                     {/* AI 추천 */}
@@ -376,22 +451,21 @@ export default function UploadsPage() {
                   <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)}
                     className="w-full mt-1 px-3 py-2 rounded-lg border border-pearl-200 text-sm" />
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500">주기</label>
-                  <select value={scheduleInterval} onChange={(e) => setScheduleInterval(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 rounded-lg border border-pearl-200 text-sm">
-                    <option value="daily1">하루 1개</option>
-                    <option value="daily2">하루 2개</option>
-                    <option value="hourly">매시간</option>
-                  </select>
-                </div>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  시작일부터 매일 1개씩 KST 18:00에 자동 발행됩니다.
+                </p>
               </div>
             )}
 
             {/* 발행 버튼 */}
             <button
               onClick={publish}
-              disabled={readyCount === 0 || publishing || !ytConnected}
+              disabled={
+                readyCount === 0 ||
+                publishing ||
+                !ytConnected ||
+                (mode === "scheduled" && !scheduleDate)
+              }
               className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
             >
               {!ytConnected ? (

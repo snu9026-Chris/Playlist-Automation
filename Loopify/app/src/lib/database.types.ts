@@ -163,8 +163,14 @@ export interface Database {
       scheduled_uploads: {
         Row: {
           id: string;
-          project_id: string;
-          track_id: string;
+          project_id: string | null;
+          track_id: string | null;
+          video_path: string | null;
+          title: string | null;
+          description: string | null;
+          tags: string[] | null;
+          first_comment: string | null;
+          youtube_video_id: string | null;
           scheduled_at: string;
           status: string;
           retry_count: number;
@@ -173,14 +179,26 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          project_id: string;
-          track_id: string;
+          project_id?: string | null;
+          track_id?: string | null;
+          video_path?: string | null;
+          title?: string | null;
+          description?: string | null;
+          tags?: string[] | null;
+          first_comment?: string | null;
+          youtube_video_id?: string | null;
           scheduled_at: string;
           status?: string;
           retry_count?: number;
           error_message?: string | null;
         };
         Update: {
+          video_path?: string | null;
+          title?: string | null;
+          description?: string | null;
+          tags?: string[] | null;
+          first_comment?: string | null;
+          youtube_video_id?: string | null;
           scheduled_at?: string;
           status?: string;
           retry_count?: number;
