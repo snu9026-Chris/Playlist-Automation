@@ -26,10 +26,10 @@ export function useShorts() {
   const analyzedCount = useMemo(() => slots.filter((s) => s.clip).length, [slots]);
   const imagesReady = useMemo(() => slots.filter((s) => s.imageUrl).length, [slots]);
 
-  const selectProject = useCallback((p: Project) => {
+  const selectProject = useCallback(async (p: Project) => {
     setSelectedId(p.id);
     setSelectedTheme(p.theme);
-    setSlots(Array.from({ length: SLOT_COUNT }, (_, i) => ({
+    const newSlots = Array.from({ length: SLOT_COUNT }, (_, i) => ({
       id: `slot-${p.id}-${i}-${Date.now()}`,
       slotIndex: i,
       file: null,
@@ -38,9 +38,25 @@ export function useShorts() {
       clipBlob: null,
       analyzing: false,
       imageUrl: null,
-    })));
-    setLyrics({});
+    }));
+    setSlots(newSlots);
     setActiveStep(1);
+
+    // 가사·스타일은 프로젝트 생성 시 playlist_projects.prompts 에 저장돼있음.
+    // shorts 페이지가 이전엔 이걸 안 읽어서 textarea가 비어있던 버그 — 선택 시 자동으로 채움.
+    try {
+      const project = await projectsApi.get(p.id) as { prompts?: Array<{ style?: string; lyrics?: string }> };
+      const prompts = project?.prompts ?? [];
+      const lyricsMap: Record<string, string> = {};
+      for (const slot of newSlots) {
+        const promptRow = prompts[slot.slotIndex];
+        if (promptRow?.lyrics) lyricsMap[slot.id] = promptRow.lyrics;
+      }
+      setLyrics(lyricsMap);
+    } catch (e) {
+      console.error("프로젝트 가사 로드 실패:", e);
+      setLyrics({});
+    }
   }, []);
 
   const reset = useCallback(() => {

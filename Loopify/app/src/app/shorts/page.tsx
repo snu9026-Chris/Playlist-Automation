@@ -713,8 +713,17 @@ function RenderStep({
   const readySlots = slots.filter((s) => s.clipBlob && s.imageUrl);
   const doneCount = Object.keys(videos).length;
 
-  // 로컬 렌더 서버 상태 자동 감지 — 3초 폴링.
-  // 브라우저는 직접 프로세스를 못 띄우므로, 사용자가 start.bat을 돌리면 자동으로 ✓ 연결됨으로 바뀜.
+  // Cloudflare Tunnel URL 우선 — start.bat → start-with-tunnel.mjs가 Supabase에 push한 값을 사용.
+  // 못 받으면 localStorage에 저장된 기본값(localhost:4100)으로 폴백 (로컬 dev 환경 대응).
+  useEffect(() => {
+    if (!enabled) return;
+    fetch("/api/render-url")
+      .then((r) => r.json())
+      .then((d) => { if (d.url) setRenderUrl(d.url); })
+      .catch(() => { /* 폴백: 기존 renderUrl 유지 */ });
+  }, [enabled, setRenderUrl]);
+
+  // 렌더 서버 상태 3초 폴링. start.bat 켜지면 곧 ✓ 표시.
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -791,16 +800,47 @@ function RenderStep({
     setRendering(false);
   };
 
-  const downloadVideo = (slotIndex: number) => {
+  /**
+   * 렌더 결과를 사용자 PC로 받고 → 받은 직후 서버 측 파일 삭제 (디스크 누적 방지).
+   * Why: window.open 방식은 다운로드 완료 시점을 알 수 없어 삭제 타이밍을 못 잡았음.
+   *      fetch→blob→a.click 패턴으로 바꿔 다운로드 트리거 직후 DELETE 호출.
+   */
+  const downloadVideo = async (slotIndex: number) => {
     const fileName = videos[slotIndex];
     if (!fileName) return;
-    // 로컬 서버에서 다운로드 또는 data URL
+
     if (fileName.startsWith("data:")) {
+      // data URL — 서버 파일 없음, 삭제 단계 생략
       const a = document.createElement("a");
       a.href = fileName;
       a.download = `shorts_${slotIndex + 1}.mp4`;
       a.click();
-    } else {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${renderUrl}/download/${fileName}`);
+      if (!res.ok) throw new Error(`Download HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      // 다운로드 성공 → 서버 파일 정리 (실패해도 무시 — 사용자에겐 이미 받았음)
+      fetch(`${renderUrl}/download/${fileName}`, { method: "DELETE" }).catch(() => {});
+
+      // 로컬 state에서도 슬롯의 파일명 제거 — 같은 영상 두 번 받으려는 시도 방지
+      setVideos((prev) => {
+        const next = { ...prev };
+        delete next[slotIndex];
+        return next;
+      });
+    } catch (e) {
+      console.error("Download failed:", e);
+      // fallback — 새 창에서 시도
       window.open(`${renderUrl}/download/${fileName}`, "_blank");
     }
   };
@@ -877,7 +917,13 @@ function RenderStep({
                 <div key={idx} className="flex items-center gap-3 px-3 py-2 bg-pearl-50 rounded-lg">
                   <Check className="w-3.5 h-3.5 text-emerald-500" />
                   <span className="text-sm text-gray-700 flex-1">#{Number(idx) + 1} 렌더링 완료</span>
-                  <span className="text-[10px] font-mono text-gray-400 truncate max-w-[200px]">{fileName}</span>
+                  <span className="text-[10px] font-mono text-gray-400 truncate max-w-[180px]">{fileName}</span>
+                  <button
+                    onClick={() => downloadVideo(Number(idx))}
+                    className="text-xs px-3 py-1 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors font-medium"
+                  >
+                    다운로드
+                  </button>
                 </div>
               ))}
               {Object.entries(errors).map(([idx, err]) => (
@@ -887,7 +933,7 @@ function RenderStep({
               ))}
               {doneCount > 0 && (
                 <div className="mt-2 px-3 py-2 bg-emerald-50 rounded-lg">
-                  <p className="text-xs text-emerald-600">📁 저장 위치: <span className="font-mono">local-server/output/</span></p>
+                  <p className="text-xs text-emerald-600">다운로드 완료 시 서버에서 자동 정리됩니다.</p>
                 </div>
               )}
             </div>

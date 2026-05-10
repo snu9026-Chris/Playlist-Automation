@@ -61,7 +61,7 @@ const MIME_MAP = {
 const server = http.createServer(async (req, res) => {
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Max-Age", "86400");
 
@@ -390,6 +390,30 @@ const server = http.createServer(async (req, res) => {
     } else {
       res.writeHead(404);
       res.end("Not found");
+    }
+    return;
+  }
+
+  // 렌더링된 파일 삭제 — 사용자가 다운로드 완료 후 호출. 디스크 누적 방지.
+  if (req.method === "DELETE" && req.url?.startsWith("/download/")) {
+    const fileName = decodeURIComponent(req.url.replace("/download/", ""));
+    // path traversal 방지 — 파일명에 슬래시·점점 막음
+    if (fileName.includes("/") || fileName.includes("\\") || fileName.includes("..")) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "invalid filename" }));
+      return;
+    }
+    const filePath = path.join(OUTPUT_DIR, fileName);
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`  ✓ Deleted after download: ${fileName}`);
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ deleted: true }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: e.message }));
     }
     return;
   }
