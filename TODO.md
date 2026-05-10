@@ -43,10 +43,13 @@
 - [x] **YouTube OAuth 연결 — A안(자격증명 공유)** — Loopdrop과 동일한 GOOGLE_CLIENT_ID/SECRET을 Loopify가 이미 사용 중. Loopify 자체 platforms 테이블에 이미 토큰 row 존재(account=Chris Lee, refresh_token 보유). Vercel prod env에도 자격증명 설정됨. Google Cloud Console redirect URI에 `https://myloopify.vercel.app/api/auth/callback` 등록 확인. (로컬 dev `localhost:3002`는 필요 시 사용자가 직접 추가)
 - [x] **youtube-status 자동 refresh 버그 수정** — `/api/projects/youtube-status`가 expires_at만 보고 만료 판정해서 refresh 가능한 토큰도 미연결로 표시되던 버그. getValidYouTubeToken()을 호출해 자동 갱신하도록 수정
 - [x] **YouTube Resumable Upload 검수** — TODO 미구현으로 적혀있었으나 실제로는 모두 구현 완료 상태였음. upload-init 라우트(서버에서 resumable session URL 발급, public 공개, Music 카테고리, 토큰 노출 0), uploads 페이지(파일명 자동 매칭 + AI 추천 + 직접 편집 + 첫 댓글 자동 등록), AI 추천 라우트(title/description/tags/firstComment GPT 추천) 다 동작. 발행 시 YouTube 미연동이면 버튼 비활성화도 이미 적용됨
+- [x] **YouTube 예약 발행 완성 (2026-05-10)** — 미완성으로 남아있던 핵심 로직 2곳(uploads/page.tsx의 publish 함수 scheduled 분기, /api/cron/upload의 TODO)을 채워 end-to-end 동작. DB: scheduled_uploads에 video_path/title/description/tags/first_comment/youtube_video_id 컬럼 추가, project_id/track_id NULL 허용. Storage: media bucket RLS 정책 (anon SELECT/INSERT/DELETE). UI: publishInstant() / registerSchedules() 분리, "주기" select 제거(매일 1개 KST 18:00 고정), 시작일 + i일치 자동 계산. POST /api/uploads/scheduled 신설. Cron: Storage 다운로드 → Resumable Upload init → PUT → 첫 댓글(5초 대기 ×3 재시도) → status=completed + Storage 삭제. 실패 retry 3회, 최종 실패 시에도 Storage 삭제. 검증: TypeScript 통과, Vercel 빌드 클린, 스모크 테스트(GET /api/uploads/scheduled 200, GET /api/cron/upload 401), Supabase 마이그레이션 적용 검증, CRON_SECRET Vercel Production 등록 확인
+- [x] **GitHub 레포 생성 + 모노레포 푸시 (2026-05-10)** — snu9026-Chris/Playlist-Automation 공개. .gitignore로 .env.local / 과외 자료 / inner .git(Loopify/app/.git → .git.backup으로 보존) 차단. env.local.md 가이드 2개 작성 (루트/app, 각 키 발급처·Redirect URI·함정 정리)
 
 ## 진행 중
 - [ ] Spotify 앱 정식 활성화 대기 (플레이리스트 API 403 → 검색 fallback)
 - [ ] 사용자 직접 검증: 숏폼 렌더링 결과 + Header "연결됨" 표시 + 실제 YouTube 발행 테스트
+- [ ] **예약 발행 실서비스 검증** — myloopify.vercel.app/uploads에서 mp4 5개 미래 날짜로 예약 → Storage 업로드 확인 → KST 18:00 cron 실행 후 YouTube 영상/댓글 + Storage 삭제 확인
 - [ ] Spotify 활성화 후 국가별 Top 50 차트 전환
 - [ ] Cloudflare Tunnel Named Tunnel 설정 (고정 URL)
 
