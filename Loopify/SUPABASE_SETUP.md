@@ -6,6 +6,86 @@
 
 ---
 
+## TL;DR — Vercel vs Supabase 자동화
+
+| 항목 | Vercel | Supabase |
+|---|---|---|
+| 가입 | 자동으로 personal team 생성 | 자동으로 personal organization 생성 |
+| **프로젝트 생성** | ✅ CLI/MCP가 자동 (`vercel deploy` 첫 호출 시 폴더 기준 새 프로젝트 생성) | ❌ **수동 1회** (대시보드에서 New Project 클릭) |
+| 환경변수 등록 | ✅ `vercel env add` 또는 대시보드 | (해당 없음) |
+| 테이블 / 인덱스 / RLS / Storage 정책 | (해당 없음) | ✅ MCP `apply_migration` 또는 SQL Editor에 SQL 붙여넣기 |
+| TypeScript 타입 / Edge Function | (해당 없음) | ✅ MCP 자동 |
+
+**결론**:
+- **Vercel**: 가입만 하면 0 → 배포까지 풀 자동.
+- **Supabase**: 가입 + **프로젝트 1번 수동 클릭** + project_ref 연결까지 한 번 해두면, 그 후엔 MCP가 다 처리.
+
+새 환경에서 Supabase는 **딱 한 번 대시보드 들렀다 오는 단계**가 있다고 생각하면 됨.
+
+---
+
+## 0. 프로젝트 생성 (수동 1회, 5분)
+
+> ⚠️ 자동화 안 되는 유일한 단계. 그 후엔 모든 게 SQL/MCP로 자동.
+
+### 0-1. 가입
+[supabase.com](https://supabase.com) 가입 — GitHub 연동 권장. personal organization 자동 생성됨.
+
+### 0-2. New Project 클릭
+대시보드에서 **New Project**:
+
+| 항목 | 권장 값 |
+|---|---|
+| Name | `loopify` (자유) |
+| Database Password | 강한 비밀번호 (별도 저장 — 분실 시 곤란) |
+| Region | `Northeast Asia (Seoul)` (한국 사용자 latency 최소) |
+| Plan | `Free` (시작용 충분, 500MB DB + 1GB Storage) |
+
+생성 ~2분 대기.
+
+### 0-3. (선택) project_ref 메모
+"project_ref"는 Supabase가 프로젝트마다 자동 발급하는 고유 식별자 (20자 랜덤 영소문자, 예: `rmpqsqpibsuxtlbmimgv`).
+
+```
+https://supabase.com/dashboard/project/rmpqsqpibsuxtlbmimgv
+                                       ^^^^^^^^^^^^^^^^^^^^
+                                       project_ref
+```
+
+**언제 쓰나**: Supabase MCP를 Claude Code에 등록할 때만 (`--project-ref=...`). 그 외엔 안 씀.
+**Dashboard SQL Editor로만 셋업하면 신경 안 써도 됨.**
+
+### 0-4. 그래서 프로젝트 안에서 뭘 만들어야 하나?
+**아무것도.** 프로젝트(=빈 DB 인스턴스) 자체만 만들면 끝.
+- 테이블, 인덱스, 트리거, Storage 버킷, RLS 정책 → 모두 아래 섹션 2의 SQL 파일들이 만든다
+- 사람이 직접 만들 건 0개
+
+### 0-5. 왜 프로젝트 생성만 수동인가
+Supabase MCP 도구 목록을 보면:
+- ✅ `apply_migration`, `execute_sql`, `list_tables`, `deploy_edge_function`, `list_branches` 등
+- ❌ `create_project` **없음** (의도적)
+
+이유: 프로젝트 생성에 들어가는 결정 — **리전 / DB 비밀번호 / 요금제 / billing** — 이 자동화에 부적합. Supabase가 의도적으로 사람 손을 거치게 함.
+
+### 0-6. 진짜 풀 스텝 (Dashboard만 쓰는 경우)
+
+| # | 어디서 | 무엇을 |
+|---|---|---|
+| 1 | supabase.com | 가입 (GitHub login 권장) |
+| 2 | 대시보드 | **New Project** 클릭 |
+| 3 | 폼 | Name / DB Password(저장!) / Region(Seoul) / Plan(Free) |
+| 4 | 폼 | **Create new project** → 2분 대기 |
+| 5 | SQL Editor | New Query → `app/supabase-schema.sql` 붙여넣고 **Run** |
+| 6 | SQL Editor | New Query → `app/supabase-migration-soft-delete.sql` 붙여넣고 **Run** |
+| 7 | SQL Editor | New Query → `app/supabase-migration-scheduled-uploads.sql` 붙여넣고 **Run** |
+| 8 | Settings → API | **Project URL** 복사 → `.env.local`의 `NEXT_PUBLIC_SUPABASE_URL` |
+| 9 | Settings → API | **anon public** 복사 → `.env.local`의 `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| 10 | Settings → API | **service_role** (reveal) 복사 → `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY` |
+
+**이게 전부.** 11단계 이후는 없음. 이 시점부터는 `npm run dev` 돌리면 동작.
+
+---
+
 ## 🤖 Claude Code에 한 번에 시키는 방법 (클론 사용자용)
 
 이 가이드를 직접 읽고 따라하기 귀찮다면, Claude Code(또는 Claude.ai)에 아래처럼 던지면 된다.
