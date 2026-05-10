@@ -30,9 +30,10 @@ English:`;
   const englishRaw = await callGemini({ prompt: translatePrompt, temperature: 0.3 });
   const englishPrompt = (englishRaw || "").trim() || prompt.trim();
 
-  const imagePrompt = `Music album cover art style, vertical 9:16 ratio. ${englishPrompt}. Absolutely no text, no letters, no words, no typography. Professional vinyl album artwork quality. Bold colors, artistic composition, iconic and memorable visual.`;
-
-  const { imageUrl } = await generateImage({ prompt: imagePrompt, aspectRatio: "9:16" });
+  // 사용자 프롬프트 100% — 외부 wrapper("album cover" 등) 추가 안 함.
+  // 이전엔 "Music album cover art style ... Bold colors, iconic" 같은 wrapper가
+  // 사용자 의도("실사", "조용한") 를 압도해서 엉뚱한 이미지가 나왔음.
+  const { imageUrl } = await generateImage({ prompt: englishPrompt, aspectRatio: "9:16" });
 
   // 메타데이터만 Supabase에 저장 (실제 이미지는 클라이언트가 보유)
   if (projectId && typeof slotIndex === "number") {

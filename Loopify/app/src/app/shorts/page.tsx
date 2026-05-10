@@ -713,18 +713,30 @@ function RenderStep({
   const readySlots = slots.filter((s) => s.clipBlob && s.imageUrl);
   const doneCount = Object.keys(videos).length;
 
-  const checkServer = async () => {
-    try {
-      const res = await fetch(`${renderUrl}/health`);
-      const data = await res.json();
-      setServerOk(data.status === "ok");
-    } catch { setServerOk(false); }
-  };
+  // 로컬 렌더 서버 상태 자동 감지 — 3초 폴링.
+  // 브라우저는 직접 프로세스를 못 띄우므로, 사용자가 start.bat을 돌리면 자동으로 ✓ 연결됨으로 바뀜.
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const ping = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`${renderUrl}/health`);
+        const data = await res.json();
+        setServerOk(data.status === "ok");
+      } catch {
+        setServerOk(false);
+      }
+    };
+    ping();
+    const id = setInterval(ping, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [enabled, renderUrl]);
 
   const compressShortsImage = (dataUrl: string) => compressImage(dataUrl, 540, 960, 0.8);
 
   const renderAll = async () => {
-    // 자동 연결 확인
+    // 클릭 시점에도 한 번 더 확인 (폴링과 클릭 사이 race 방지)
     try {
       const h = await fetch(`${renderUrl}/health`);
       const hd = await h.json();
@@ -732,8 +744,7 @@ function RenderStep({
       setServerOk(true);
     } catch {
       setServerOk(false);
-      setShowUrlInput(true);
-      alert("로컬 렌더 서버 연결 실패. node local-server/render-server.mjs 실행 후 다시 시도하세요.");
+      // 자동 폴링이 곧 다시 감지하므로 alert 대신 차분한 인라인 메시지로 처리
       return;
     }
 
@@ -819,25 +830,37 @@ function RenderStep({
 
       {enabled && (
         <>
+          {/* 서버 상태 자동 표시 — 3초마다 polling */}
+          <div className="flex items-center gap-2 text-xs">
+            {serverOk === true ? (
+              <span className="text-emerald-500 font-medium">✓ 로컬 렌더 서버 연결됨</span>
+            ) : serverOk === false ? (
+              <span className="text-amber-600">
+                ⏳ 로컬 렌더 서버 대기 중 — <span className="font-mono">start.bat</span> 실행하면 자동 감지됩니다
+              </span>
+            ) : (
+              <span className="text-gray-400">서버 상태 확인 중…</span>
+            )}
+            <button
+              onClick={() => setShowUrlInput((v) => !v)}
+              className="ml-auto text-[10px] text-gray-400 hover:text-gray-600 underline"
+            >
+              {showUrlInput ? "URL 숨기기" : "URL 변경"}
+            </button>
+          </div>
+
           {showUrlInput && (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={renderUrl}
-                onChange={(e) => setRenderUrl(e.target.value)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-pearl-200 w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-              />
-              <button onClick={checkServer} className="text-xs px-3 py-1.5 rounded-lg border border-pearl-200 text-gray-600 hover:bg-pearl-50">
-                연결 확인
-              </button>
-              {serverOk === true && <span className="text-xs text-emerald-500 font-medium">✓ 연결됨</span>}
-              {serverOk === false && <span className="text-xs text-red-500">✗ 로컬 서버 실행 필요</span>}
-            </div>
+            <input
+              type="text"
+              value={renderUrl}
+              onChange={(e) => setRenderUrl(e.target.value)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-pearl-200 w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+            />
           )}
 
           <button
             onClick={renderAll}
-            disabled={rendering || readySlots.length === 0}
+            disabled={rendering || readySlots.length === 0 || !serverOk}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-sm font-semibold disabled:opacity-50 shadow-sm"
           >
             {rendering ? (

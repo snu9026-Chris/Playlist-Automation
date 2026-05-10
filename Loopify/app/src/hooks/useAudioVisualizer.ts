@@ -128,7 +128,11 @@ export function useAudioVisualizer(opts: UseAudioVisualizerOpts): UseAudioVisual
       if (analyserRef.current) {
         const raw = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(raw);
-        freqData = boostFreqData(raw);
+        // 클립이 끝나 무음 상태면 시뮬레이션으로 채움 — 시각화가 "정지"된 듯 보이지 않게
+        let sum = 0;
+        for (let k = 0; k < raw.length; k++) sum += raw[k];
+        const avg = sum / raw.length;
+        freqData = avg < 5 ? simulateFreqData(32, elapsed) : boostFreqData(raw);
       } else {
         freqData = simulateFreqData(32, elapsed);
       }

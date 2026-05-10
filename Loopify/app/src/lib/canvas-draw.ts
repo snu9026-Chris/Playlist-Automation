@@ -36,11 +36,16 @@ export function boostFreqData(raw: Uint8Array, multiplier = 2.5): Uint8Array {
   return boosted;
 }
 
-/** 시뮬레이션 주파수 데이터 (오디오 없을 때) */
+/**
+ * 시뮬레이션 주파수 데이터 (오디오 없을 때, 또는 클립이 끝나 무음 상태일 때).
+ * Why: 이전 공식은 끝의 ×2 때문에 평균 280으로 튀어 거의 모든 프레임이 255 saturation 됨 →
+ *      모든 막대가 같은 높이로 고정되어 "정지" 상태처럼 보였음. 항상 가시적으로 출렁이도록 조정.
+ */
 export function simulateFreqData(barCount: number, elapsed: number): Uint8Array {
   const data = new Uint8Array(barCount);
   for (let i = 0; i < barCount; i++) {
-    data[i] = Math.min(Math.floor((120 + Math.sin(elapsed * 3 + i * 0.5) * 100 + Math.random() * 40) * 2), 255);
+    // 범위 [25, 215] — 절대 saturation 안 됨, 항상 sin으로 출렁임
+    data[i] = Math.floor(120 + Math.sin(elapsed * 4 + i * 0.6) * 70 + Math.random() * 25);
   }
   return data;
 }
