@@ -75,9 +75,9 @@ Supabase MCP 도구 목록을 보면:
 | 2 | 대시보드 | **New Project** 클릭 |
 | 3 | 폼 | Name / DB Password(저장!) / Region(Seoul) / Plan(Free) |
 | 4 | 폼 | **Create new project** → 2분 대기 |
-| 5 | SQL Editor | New Query → `app/supabase-schema.sql` 붙여넣고 **Run** |
-| 6 | SQL Editor | New Query → `app/supabase-migration-soft-delete.sql` 붙여넣고 **Run** |
-| 7 | SQL Editor | New Query → `app/supabase-migration-scheduled-uploads.sql` 붙여넣고 **Run** |
+| 5 | SQL Editor | New Query → `Loopify/app/supabase-schema.sql` 붙여넣고 **Run** |
+| 6 | SQL Editor | New Query → `Loopify/app/supabase-migration-soft-delete.sql` 붙여넣고 **Run** |
+| 7 | SQL Editor | New Query → `Loopify/app/supabase-migration-scheduled-uploads.sql` 붙여넣고 **Run** |
 | 8 | Settings → API | **Project URL** 복사 → `.env.local`의 `NEXT_PUBLIC_SUPABASE_URL` |
 | 9 | Settings → API | **anon public** 복사 → `.env.local`의 `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | 10 | Settings → API | **service_role** (reveal) 복사 → `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY` |
@@ -95,7 +95,7 @@ Supabase MCP 도구 목록을 보면:
 > Supabase MCP 셋업: [공식 문서](https://supabase.com/docs/guides/getting-started/mcp) 참고. 본인 Supabase 프로젝트 access token을 Claude Code에 등록.
 
 ```
-@Loopify/SUPABASE_SETUP.md 보고 내 Supabase 프로젝트에 필요한
+@SUPABASE_SETUP.md 보고 내 Supabase 프로젝트에 필요한
 테이블·마이그레이션·Storage 버킷·RLS 정책을 다 적용해줘.
 
 먼저 list_tables / list_migrations로 현재 상태 확인하고,
@@ -106,7 +106,7 @@ Supabase MCP 도구 목록을 보면:
 ### 시나리오 B — Supabase MCP 없이 (Dashboard에 직접 붙여넣기)
 
 ```
-@Loopify/SUPABASE_SETUP.md 보고, 내가 Supabase Dashboard SQL Editor에
+@SUPABASE_SETUP.md 보고, 내가 Supabase Dashboard SQL Editor에
 차례대로 붙여넣을 수 있게 SQL 블록을 순서대로 정리해줘.
 어느 파일에서 가져온 건지도 같이 표시.
 ```
@@ -114,7 +114,7 @@ Supabase MCP 도구 목록을 보면:
 ### 시나리오 C — `.env.local` 템플릿만 만들고 싶을 때
 
 ```
-@Loopify/SUPABASE_SETUP.md 보고 Loopify/app/.env.local 템플릿 파일을
+@SUPABASE_SETUP.md 보고 Loopify/app/.env.local 템플릿 파일을
 만들어줘. 키 값은 빈 칸으로 두고, 각 키 옆에 어디서 받는지 한 줄 주석.
 ```
 
@@ -151,11 +151,11 @@ Supabase MCP 도구 목록을 보면:
 
 Supabase Dashboard → SQL Editor → 새 쿼리 → 아래 파일들을 **순서대로** 한 번씩 실행.
 
-| 순서 | 파일 (위치: `Loopify/app/`) | 설명 |
+| 순서 | 파일 (위치: 레포 루트 기준) | 설명 |
 |---|---|---|
-| 1 | `app/supabase-schema.sql` | 4개 테이블 + 인덱스 + `updated_at` 자동 갱신 트리거 |
-| 2 | `app/supabase-migration-soft-delete.sql` | 프로젝트 소프트 삭제 (`deleted_at` 컬럼 + status `'deleted'`) |
-| 3 | `app/supabase-migration-scheduled-uploads.sql` | 예약 업로드 컬럼 확장 + Storage `media` 버킷 + RLS 정책 |
+| 1 | `Loopify/app/supabase-schema.sql` | 4개 테이블 + 인덱스 + `updated_at` 자동 갱신 트리거 |
+| 2 | `Loopify/app/supabase-migration-soft-delete.sql` | 프로젝트 소프트 삭제 (`deleted_at` 컬럼 + status `'deleted'`) |
+| 3 | `Loopify/app/supabase-migration-scheduled-uploads.sql` | 예약 업로드 컬럼 확장 + Storage `media` 버킷 + RLS 정책 |
 
 > 모두 `IF NOT EXISTS` / `IF NOT NULL` 등으로 멱등하게 작성되어 있어, 이미 적용된 환경에서 다시 돌려도 안전.
 
@@ -178,12 +178,12 @@ Supabase Dashboard → SQL Editor → 새 쿼리 → 아래 파일들을 **순�
 
 ## 4. 코드에서 Supabase를 쓰는 곳 (참고용)
 
-Loopify는 `src/lib/supabase.ts`의 두 클라이언트로 접근.
+Loopify는 `Loopify/app/src/lib/supabase.ts`의 두 클라이언트로 접근.
 
 - **`createBrowserClient()`** — 브라우저, anon key
 - **`createServerClient()`** — API Routes, service_role key
 
-주요 사용처 (변경 시 영향 범위 파악용):
+주요 사용처 (변경 시 영향 범위 파악용. 모두 `Loopify/app/` 하위):
 
 | 영역 | 파일 |
 |---|---|
@@ -224,7 +224,7 @@ Loopify는 `src/lib/supabase.ts`의 두 클라이언트로 접근.
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   ```
-  > 정확한 컬럼 구조는 `Loopify/app/src/lib/youtube-auth.ts`와 `src/app/api/auth/callback/route.ts`에서 사용 패턴 보고 맞출 것.
+  > 정확한 컬럼 구조는 `Loopify/app/src/lib/youtube-auth.ts`와 `Loopify/app/src/app/api/auth/callback/route.ts`에서 사용 패턴 보고 맞출 것.
 - **YouTube 업로드 시 401/403** → `platforms` 테이블에 토큰이 없거나 만료. `/setup` 또는 OAuth 재연결 플로우 필요.
 - **Storage 업로드 403** → 마이그레이션 #3의 RLS 정책이 미적용. `media` 버킷 정책 다시 확인.
 - **`service_role` 키를 `NEXT_PUBLIC_*`에 넣은 경우** → 브라우저로 노출되니 즉시 키 회전(rotate) 후 서버 전용으로 다시 분리.
