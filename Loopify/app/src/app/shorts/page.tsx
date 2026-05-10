@@ -713,16 +713,6 @@ function RenderStep({
   const readySlots = slots.filter((s) => s.clipBlob && s.imageUrl);
   const doneCount = Object.keys(videos).length;
 
-  // Cloudflare Tunnel URL 우선 — start.bat → start-with-tunnel.mjs가 Supabase에 push한 값을 사용.
-  // 못 받으면 localStorage에 저장된 기본값(localhost:4100)으로 폴백 (로컬 dev 환경 대응).
-  useEffect(() => {
-    if (!enabled) return;
-    fetch("/api/render-url")
-      .then((r) => r.json())
-      .then((d) => { if (d.url) setRenderUrl(d.url); })
-      .catch(() => { /* 폴백: 기존 renderUrl 유지 */ });
-  }, [enabled, setRenderUrl]);
-
   // 렌더 서버 상태 3초 폴링. start.bat 켜지면 곧 ✓ 표시.
   useEffect(() => {
     if (!enabled) return;
