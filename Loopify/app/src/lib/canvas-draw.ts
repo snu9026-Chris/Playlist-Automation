@@ -284,16 +284,17 @@ function _drawGlassEq(ctx: CanvasRenderingContext2D, freqData: Uint8Array, barCo
     const x = startX + i * barW + gap / 2;
     const w = Math.max(barW - gap, 2);
     const by = startY + eqH - bH;
-    ctx.fillStyle = `rgba(255,255,255,${0.08 + v * 0.18})`;
+    // 알파 베이스 0.08→0.25, 진폭 0.18→0.45 — 어두운/밝은 배경 모두에서 시각적으로 충분히 잡힘
+    ctx.fillStyle = `rgba(255,255,255,${0.25 + v * 0.45})`;
     ctx.beginPath(); ctx.roundRect(x, by, w, bH, 2); ctx.fill();
-    ctx.strokeStyle = `rgba(255,255,255,${0.15 + v * 0.2})`;
+    ctx.strokeStyle = `rgba(255,255,255,${0.3 + v * 0.4})`;
     ctx.lineWidth = 0.5;
     ctx.beginPath(); ctx.roundRect(x, by, w, bH, 2); ctx.stroke();
-    ctx.fillStyle = `rgba(255,255,255,${0.3 + v * 0.2})`;
+    ctx.fillStyle = `rgba(255,255,255,${0.5 + v * 0.3})`;
     ctx.fillRect(x + 1, by, w - 2, Math.min(bH, 4));
-    ctx.fillStyle = `rgba(255,255,255,0.2)`;
+    ctx.fillStyle = `rgba(255,255,255,0.35)`;
     ctx.fillRect(x, by, 1, bH);
-    ctx.fillStyle = `rgba(129,140,248,${v * 0.25})`;
+    ctx.fillStyle = `rgba(129,140,248,${v * 0.4})`;
     ctx.fillRect(x, by + bH * 0.6, w, bH * 0.4);
   }
 }
@@ -377,29 +378,94 @@ function _drawSymmetricEq(ctx: CanvasRenderingContext2D, freqData: Uint8Array, b
 // 숏폼 전용 그리기 (재생바, 가사)
 // ═══════════════════════════════════════
 
+/**
+ * 숏폼 재생 컨트롤러 — YouTube Music 스타일.
+ * 위치는 화면 상단(이퀄라이저와 안 겹치게). 2단 구성:
+ *   1단: 아이콘 6개 (⏮ ⏸ ⏭ 🔀 ↻ ♥)
+ *   2단: 진행바 + 양 끝 타임스탬프
+ */
 export function drawShortsPlayerBar(ctx: CanvasRenderingContext2D, W: number, H: number, elapsed: number) {
-  const barW3 = W * 0.8, barH3 = 26;
-  const x = (W - barW3) / 2, y = H - 50;
-  const prog = (elapsed % 10) / 10;
+  const padding = W * 0.04;
+  const x = padding;
+  const y = H * 0.06; // 상단에서 살짝 띄움 (이퀄라이저는 하단이므로 안 겹침)
+  const barW = W - padding * 2;
+  const barH = 56;
+
+  // 진행도 시뮬레이션 (실제 곡 길이 모르니 3:30 가정, elapsed 21배속으로 진행)
+  const totalSec = 210;
+  const currentSec = Math.min(Math.floor(elapsed * 21), totalSec);
+  const prog = currentSec / totalSec;
+
   ctx.save();
-  drawGlassBox(ctx, x, y, barW3, barH3, barH3 / 2);
-  ctx.fillStyle = "rgba(255,255,255,0.1)";
-  ctx.beginPath(); ctx.arc(x + 16, y + barH3 / 2, 8, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "white";
-  ctx.fillRect(x + 13, y + barH3 / 2 - 4, 2.5, 8);
-  ctx.fillRect(x + 17, y + barH3 / 2 - 4, 2.5, 8);
-  const pStart = x + 30, pW = barW3 - 60;
-  ctx.fillStyle = "rgba(255,255,255,0.12)";
-  ctx.beginPath(); ctx.roundRect(pStart, y + barH3 / 2 - 1.5, pW, 3, 1.5); ctx.fill();
-  const grad = ctx.createLinearGradient(pStart, 0, pStart + pW * prog, 0);
-  grad.addColorStop(0, "#818cf8"); grad.addColorStop(1, "#c084fc");
+
+  // 배경 — 진한 블러 글래스 (YouTube Music 다크 톤)
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath(); ctx.roundRect(x, y, barW, barH, 14); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.1)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.roundRect(x, y, barW, barH, 14); ctx.stroke();
+
+  // ── 1단: 아이콘 행 ──
+  const iconY = y + 18;
+  const icons = ["⏮", "⏸", "⏭", "🔀", "↻", "♥"];
+  const iconCount = icons.length;
+  const iconGap = 22;
+  const totalIconW = iconCount * iconGap;
+  const iconStartX = x + (barW - totalIconW) / 2 + iconGap / 2;
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (let i = 0; i < iconCount; i++) {
+    const ix = iconStartX + i * iconGap;
+    if (i === 1) {
+      // 가운데(재생/일시정지)는 약간 강조
+      ctx.fillStyle = "rgba(255,255,255,0.98)";
+      ctx.font = "16px 'Segoe UI Symbol', 'Apple Symbols', sans-serif";
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.78)";
+      ctx.font = "13px 'Segoe UI Symbol', 'Apple Symbols', sans-serif";
+    }
+    ctx.fillText(icons[i], ix, iconY);
+  }
+
+  // ── 2단: 진행바 + 타임스탬프 ──
+  const pY = y + 42;
+  ctx.font = "500 7.5px 'Inter', monospace";
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+
+  // 좌측 시간
+  ctx.textAlign = "left";
+  ctx.fillText(formatTime(currentSec), x + 8, pY + 1);
+
+  // 우측 시간
+  ctx.textAlign = "right";
+  ctx.fillText(formatTime(totalSec), x + barW - 8, pY + 1);
+
+  // 진행 트랙 (양 끝 시간 사이)
+  const pX = x + 32;
+  const pW = barW - 64;
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.beginPath(); ctx.roundRect(pX, pY - 1, pW, 2, 1); ctx.fill();
+
+  // 채워진 진행 (그라데이션)
+  const grad = ctx.createLinearGradient(pX, 0, pX + Math.max(pW * prog, 1), 0);
+  grad.addColorStop(0, "#818cf8");
+  grad.addColorStop(1, "#c084fc");
   ctx.fillStyle = grad;
-  ctx.beginPath(); ctx.roundRect(pStart, y + barH3 / 2 - 1.5, pW * prog, 3, 1.5); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(pX, pY - 1, pW * prog, 2, 1); ctx.fill();
+
+  // 진행 thumb (드래그 점)
   ctx.fillStyle = "white";
-  ctx.beginPath(); ctx.arc(pStart + pW * prog, y + barH3 / 2, 3.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "500 7px monospace"; ctx.textAlign = "right";
-  ctx.fillText(`0:${Math.floor(elapsed % 20).toString().padStart(2, "0")}`, x + barW3 - 8, y + barH3 / 2 + 2.5);
+  ctx.beginPath(); ctx.arc(pX + pW * prog, pY, 3.5, 0, Math.PI * 2); ctx.fill();
+
   ctx.restore();
+}
+
+function formatTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export function drawShortsLyrics(ctx: CanvasRenderingContext2D, lyrics: string, W: number, H: number, elapsed: number) {
