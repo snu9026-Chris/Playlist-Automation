@@ -24,6 +24,13 @@ const W = 1080;
 const H = 1920;
 const CLIP_DURATION = 20; // 초
 
+// canvas-draw.ts의 EQ/가사/플레이어바 함수들은 미리보기 베이스(270×480)에서 픽셀이 고정돼있다.
+// 렌더(1080×1920)에서 그대로 호출하면 오버레이가 4배 작아 보임 → ctx.scale(SCALE)로 보정.
+// 미리보기와 비례 100% 동일하게 유지.
+const PREVIEW_W = 270;
+const PREVIEW_H = 480;
+const OVERLAY_SCALE = W / PREVIEW_W; // = 4
+
 export interface RenderFramesOpts {
   /** 20초 오디오 클립 (WAV Blob from extractClip) */
   audioBlob: Blob;
@@ -110,13 +117,18 @@ export async function renderShortsFrames(opts: RenderFramesOpts): Promise<Blob[]
       const elapsed = (performance.now() - startTime) / 1000;
 
       // ── 캔버스 그리기 (미리보기와 동일 순서) ──
+      // 배경 이미지는 풀해상도 1080×1920로 그림
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
       ctx.drawImage(img, 0, 0, W, H);
 
-      if (presets.has("eq")) drawEqualizer(ctx, eqType, freqData, W, H);
-      if (presets.has("lyrics") && lyrics) drawShortsLyrics(ctx, lyrics, W, H, elapsed);
-      if (presets.has("player-bar")) drawShortsPlayerBar(ctx, W, H, elapsed);
+      // 오버레이는 미리보기 좌표계(270×480)로 그린 뒤 4배 transform으로 키움 → 비례 일치
+      ctx.save();
+      ctx.scale(OVERLAY_SCALE, OVERLAY_SCALE);
+      if (presets.has("eq")) drawEqualizer(ctx, eqType, freqData, PREVIEW_W, PREVIEW_H);
+      if (presets.has("lyrics") && lyrics) drawShortsLyrics(ctx, lyrics, PREVIEW_W, PREVIEW_H, elapsed);
+      if (presets.has("player-bar")) drawShortsPlayerBar(ctx, PREVIEW_W, PREVIEW_H, elapsed);
+      ctx.restore();
 
       // ── JPEG로 캡처 (PNG보다 10~20배 작아 메모리 부담↓, 시각 품질 차이 미미) ──
       const blob = await canvasToBlob(canvas);
