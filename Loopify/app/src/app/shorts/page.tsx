@@ -20,13 +20,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { Project, TrackSlot, EqualizerType, ShortsPreset } from "@/lib/types";
-import { blobToBase64, compressImage } from "@/lib/image-utils";
 import { ShortsPreview } from "@/components/shorts/ShortsPreview";
 import { projectsApi } from "@/lib/api/projects";
 import { imagesApi } from "@/lib/api/images";
 import { useShorts } from "@/hooks/useShorts";
 import { useToggleSet } from "@/hooks/useToggleSet";
 import { useLocalState } from "@/hooks/useLocalState";
+import { renderShortsFrames } from "@/lib/shorts-frame-renderer";
+import { encodeShortsMp4, warmupFFmpeg } from "@/lib/ffmpeg-shorts";
+import { createBrowserClient } from "@/lib/supabase";
 
 type ShortsEqType = EqualizerType;
 
@@ -686,7 +688,10 @@ function ImageGenStep({
   );
 }
 
-/* ─── Step 4: Vercel 서버 렌더링 ─── */
+/* ─── Step 4: 브라우저 wasm 렌더링 ───
+ * 사용자 PC에서 직접 ffmpeg.wasm으로 인코딩 (서버 비용 0, Vercel 호환).
+ * 결과 mp4는 메모리 Blob — "저장"으로 PC 다운로드, "예약 발행"으로 Supabase Storage 업로드 + cron 큐.
+ */
 function RenderStep({
   enabled,
   slots,
@@ -703,135 +708,143 @@ function RenderStep({
   /** key는 TrackSlot.id (안정 키). slotIndex 사용 금지. */
   lyrics: Record<string, string>;
 }) {
-  const [renderUrl, setRenderUrl] = useLocalState("loopify_render_url", "http://localhost:4100");
-  const [serverOk, setServerOk] = useState<boolean | null>(null);
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  type SlotPhase = "frames" | "encoding";
   const [rendering, setRendering] = useState(false);
-  const [renderedCount, setRenderedCount] = useState(0);
-  const [videos, setVideos] = useState<Record<number, string>>({});
+  const [currentPhase, setCurrentPhase] = useState<{ slotIndex: number; phase: SlotPhase; ratio: number } | null>(null);
+  // slotIndex → mp4 Blob (메모리에 저장. 페이지 떠나면 휘발.)
+  const [videos, setVideos] = useState<Record<number, Blob>>({});
   const [errors, setErrors] = useState<Record<number, string>>({});
+  // 메타데이터 — generateMetadata 호출 후 채워짐 (예약 발행 시 title/desc/tags 소스)
+  const [tracksMeta, setTracksMeta] = useState<Record<number, { title?: string; description?: string; tags?: string[] }>>({});
+  // 예약 발행 UI 상태
+  const [scheduleUiSlot, setScheduleUiSlot] = useState<number | null>(null);
+  const [scheduleAtBySlot, setScheduleAtBySlot] = useState<Record<number, string>>({});
+  const [scheduledMark, setScheduledMark] = useState<Record<number, string>>({}); // slotIndex → ISO 시각
+
   const readySlots = slots.filter((s) => s.clipBlob && s.imageUrl);
   const doneCount = Object.keys(videos).length;
 
-  // 렌더 서버 상태 3초 폴링. start.bat 켜지면 곧 ✓ 표시.
+  // 페이지 진입 시 wasm core 미리 받기 (UI 안 막음)
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
-    const ping = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch(`${renderUrl}/health`);
-        const data = await res.json();
-        setServerOk(data.status === "ok");
-      } catch {
-        setServerOk(false);
-      }
-    };
-    ping();
-    const id = setInterval(ping, 3000);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [enabled, renderUrl]);
-
-  const compressShortsImage = (dataUrl: string) => compressImage(dataUrl, 540, 960, 0.8);
+    warmupFFmpeg().catch((e) => console.error("ffmpeg warmup failed:", e));
+  }, [enabled]);
 
   const renderAll = async () => {
-    // 클릭 시점에도 한 번 더 확인 (폴링과 클릭 사이 race 방지)
-    try {
-      const h = await fetch(`${renderUrl}/health`);
-      const hd = await h.json();
-      if (hd.status !== "ok") throw new Error();
-      setServerOk(true);
-    } catch {
-      setServerOk(false);
-      // 자동 폴링이 곧 다시 감지하므로 alert 대신 차분한 인라인 메시지로 처리
-      return;
-    }
-
     setRendering(true);
-    setRenderedCount(0);
     setErrors({});
 
     for (const slot of readySlots) {
       try {
-        const audioBase64 = await blobToBase64(slot.clipBlob!);
-        const imageBase64 = await compressShortsImage(slot.imageUrl!);
-
-        const res = await fetch(`${renderUrl}/render`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            audioBase64,
-            imageBase64,
-            slotIndex: slot.slotIndex,
-            trackTitle: slot.fileName,
-            subtitle: presets.has("lyrics") ? (lyrics[slot.id] || "") : "",
-            eqType: presets.has("eq") ? eqType : "none",
-            showPlayerBar: presets.has("player-bar"),
-          }),
+        // 1) 프레임 추출 (실시간 20초 — 음소거 재생 + RAF)
+        setCurrentPhase({ slotIndex: slot.slotIndex, phase: "frames", ratio: 0 });
+        const frames = await renderShortsFrames({
+          audioBlob: slot.clipBlob!,
+          imageUrl: slot.imageUrl!,
+          eqType: presets.has("eq") ? eqType : "none",
+          presets: presets as Set<string>,
+          lyrics: presets.has("lyrics") ? (lyrics[slot.id] || "") : "",
+          onProgress: (r) => setCurrentPhase({ slotIndex: slot.slotIndex, phase: "frames", ratio: r }),
         });
 
-        const data = await res.json();
-        if (data.success) {
-          setVideos((prev) => ({ ...prev, [slot.slotIndex]: data.fileName ?? "done" }));
-        } else {
-          setErrors((prev) => ({ ...prev, [slot.slotIndex]: data.error ?? "렌더링 실패" }));
-        }
-      } catch (e: any) {
-        setErrors((prev) => ({ ...prev, [slot.slotIndex]: e.message }));
+        // 2) wasm 인코딩
+        setCurrentPhase({ slotIndex: slot.slotIndex, phase: "encoding", ratio: 0 });
+        const mp4 = await encodeShortsMp4({
+          frames,
+          audio: slot.clipBlob!,
+          onProgress: (r) => setCurrentPhase({ slotIndex: slot.slotIndex, phase: "encoding", ratio: r }),
+        });
+
+        setVideos((prev) => ({ ...prev, [slot.slotIndex]: mp4 }));
+      } catch (e) {
+        console.error(`render failed slot ${slot.slotIndex}:`, e);
+        setErrors((prev) => ({ ...prev, [slot.slotIndex]: e instanceof Error ? e.message : String(e) }));
       }
-      setRenderedCount((c) => c + 1);
     }
 
-    // 렌더링 완료 후 메타데이터 자동 생성
+    // 메타데이터 자동 생성 + 캐시
     try {
-      await fetch(`/api/projects/${projectId}/metadata`, { method: "POST" });
-    } catch {}
+      await projectsApi.generateMetadata(projectId);
+      const tracks = await projectsApi.tracks(projectId);
+      const map: Record<number, { title?: string; description?: string; tags?: string[] }> = {};
+      for (const t of tracks ?? []) {
+        if (typeof t.slot_index === "number") {
+          map[t.slot_index] = { title: t.title, description: t.description, tags: t.tags };
+        }
+      }
+      setTracksMeta(map);
+    } catch (e) {
+      console.error("metadata fetch failed:", e);
+    }
 
+    setCurrentPhase(null);
     setRendering(false);
   };
 
-  /**
-   * 렌더 결과를 사용자 PC로 받고 → 받은 직후 서버 측 파일 삭제 (디스크 누적 방지).
-   * Why: window.open 방식은 다운로드 완료 시점을 알 수 없어 삭제 타이밍을 못 잡았음.
-   *      fetch→blob→a.click 패턴으로 바꿔 다운로드 트리거 직후 DELETE 호출.
-   */
-  const downloadVideo = async (slotIndex: number) => {
-    const fileName = videos[slotIndex];
-    if (!fileName) return;
+  // PC 저장 — Blob을 즉시 다운로드
+  const saveToPc = (slotIndex: number) => {
+    const blob = videos[slotIndex];
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shorts_${slotIndex + 1}.mp4`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-    if (fileName.startsWith("data:")) {
-      // data URL — 서버 파일 없음, 삭제 단계 생략
-      const a = document.createElement("a");
-      a.href = fileName;
-      a.download = `shorts_${slotIndex + 1}.mp4`;
-      a.click();
+  // 예약 발행 — Storage 업로드 + scheduled_uploads INSERT
+  const schedulePublish = async (slotIndex: number) => {
+    const blob = videos[slotIndex];
+    const scheduledAtLocal = scheduleAtBySlot[slotIndex];
+    if (!blob || !scheduledAtLocal) return;
+
+    const meta = tracksMeta[slotIndex] ?? {};
+    if (!meta.title) {
+      setErrors((prev) => ({ ...prev, [slotIndex]: "메타데이터 없음 — 잠시 후 다시 시도" }));
       return;
     }
 
     try {
-      const res = await fetch(`${renderUrl}/download/${fileName}`);
-      if (!res.ok) throw new Error(`Download HTTP ${res.status}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      // Storage 업로드 — anon key + media bucket RLS는 마이그레이션 #3에서 anon 자유 허용
+      const supabase = createBrowserClient();
+      const uuid = crypto.randomUUID();
+      const videoPath = `scheduled/${uuid}.mp4`;
 
-      // 다운로드 성공 → 서버 파일 정리 (실패해도 무시 — 사용자에겐 이미 받았음)
-      fetch(`${renderUrl}/download/${fileName}`, { method: "DELETE" }).catch(() => {});
+      const { error: upErr } = await supabase.storage
+        .from("media")
+        .upload(videoPath, blob, { contentType: "video/mp4", upsert: false });
+      if (upErr) throw new Error(`Storage upload: ${upErr.message}`);
 
-      // 로컬 state에서도 슬롯의 파일명 제거 — 같은 영상 두 번 받으려는 시도 방지
+      // scheduled_uploads INSERT (기존 API 재사용)
+      const res = await fetch(`/api/uploads/scheduled`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoPath,
+          title: meta.title,
+          description: meta.description ?? "",
+          tags: meta.tags ?? [],
+          scheduledAt: new Date(scheduledAtLocal).toISOString(),
+          projectId,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(`Schedule API: ${d.error ?? res.statusText}`);
+      }
+
+      setScheduledMark((prev) => ({ ...prev, [slotIndex]: scheduledAtLocal }));
+      setScheduleUiSlot(null);
+      // 메모리 절약: 예약 완료 시 Blob 해제 (Storage에 이미 있음)
       setVideos((prev) => {
         const next = { ...prev };
         delete next[slotIndex];
         return next;
       });
     } catch (e) {
-      console.error("Download failed:", e);
-      // fallback — 새 창에서 시도
-      window.open(`${renderUrl}/download/${fileName}`, "_blank");
+      console.error(`schedule failed slot ${slotIndex}:`, e);
+      setErrors((prev) => ({ ...prev, [slotIndex]: e instanceof Error ? e.message : String(e) }));
     }
   };
 
@@ -851,7 +864,7 @@ function RenderStep({
         </div>
         <div>
           <h3 className="font-semibold text-gray-900">영상 렌더링</h3>
-          <p className="text-xs text-gray-400">이미지 + 클립 + 이퀄라이저 → Remotion 렌더링 (1080x1920, 20초)</p>
+          <p className="text-xs text-gray-400">브라우저에서 직접 인코딩 (1080×1920, 20초). 서버 안 거침.</p>
         </div>
         {readySlots.length > 0 && (
           <span className="ml-auto text-xs tabular-nums text-gray-400">{doneCount}/{readySlots.length}</span>
@@ -860,78 +873,131 @@ function RenderStep({
 
       {enabled && (
         <>
-          {/* 서버 상태 자동 표시 — 3초마다 polling */}
-          <div className="flex items-center gap-2 text-xs">
-            {serverOk === true ? (
-              <span className="text-emerald-500 font-medium">✓ 로컬 렌더 서버 연결됨</span>
-            ) : serverOk === false ? (
-              <span className="text-amber-600">
-                ⏳ 로컬 렌더 서버 대기 중 — <span className="font-mono">start.bat</span> 실행하면 자동 감지됩니다
-              </span>
-            ) : (
-              <span className="text-gray-400">서버 상태 확인 중…</span>
-            )}
-            <button
-              onClick={() => setShowUrlInput((v) => !v)}
-              className="ml-auto text-[10px] text-gray-400 hover:text-gray-600 underline"
-            >
-              {showUrlInput ? "URL 숨기기" : "URL 변경"}
-            </button>
-          </div>
-
-          {showUrlInput && (
-            <input
-              type="text"
-              value={renderUrl}
-              onChange={(e) => setRenderUrl(e.target.value)}
-              className="text-xs px-3 py-1.5 rounded-lg border border-pearl-200 w-56 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-            />
-          )}
+          <p className="text-[11px] text-amber-600 leading-relaxed">
+            ⚠️ 렌더링 중에는 <span className="font-mono">이 탭을 활성 상태로</span> 두세요 (백그라운드 시 오디오 분석이 느려져 결과가 깨질 수 있습니다)
+          </p>
 
           <button
             onClick={renderAll}
-            disabled={rendering || readySlots.length === 0 || !serverOk}
+            disabled={rendering || readySlots.length === 0}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-sm font-semibold disabled:opacity-50 shadow-sm"
           >
             {rendering ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> 렌더링 중... ({renderedCount}/{readySlots.length})</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> 렌더링 중...</>
             ) : (
               <><Film className="w-4 h-4" /> {readySlots.length}개 영상 렌더링</>
             )}
           </button>
 
-          {/* 결과 */}
-          {(doneCount > 0 || Object.keys(errors).length > 0) && (
-            <div className="space-y-1">
-              {Object.entries(videos).map(([idx, fileName]) => (
-                <div key={idx} className="flex items-center gap-3 px-3 py-2 bg-pearl-50 rounded-lg">
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-sm text-gray-700 flex-1">#{Number(idx) + 1} 렌더링 완료</span>
-                  <span className="text-[10px] font-mono text-gray-400 truncate max-w-[180px]">{fileName}</span>
-                  <button
-                    onClick={() => downloadVideo(Number(idx))}
-                    className="text-xs px-3 py-1 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors font-medium"
-                  >
-                    다운로드
-                  </button>
-                </div>
-              ))}
-              {Object.entries(errors).map(([idx, err]) => (
-                <div key={`e-${idx}`} className="flex items-center gap-3 px-3 py-2 bg-red-50 rounded-lg">
-                  <span className="text-xs text-red-500">#{Number(idx) + 1} 실패: {err}</span>
-                </div>
-              ))}
-              {doneCount > 0 && (
-                <div className="mt-2 px-3 py-2 bg-emerald-50 rounded-lg">
-                  <p className="text-xs text-emerald-600">다운로드 완료 시 서버에서 자동 정리됩니다.</p>
-                </div>
-              )}
+          {/* 현재 진행 중인 슬롯 표시 */}
+          {currentPhase && (
+            <div className="px-3 py-2 bg-indigo-50 rounded-lg space-y-1.5">
+              <p className="text-xs text-indigo-700 font-medium">
+                #{currentPhase.slotIndex + 1} —{" "}
+                {currentPhase.phase === "frames" ? "프레임 추출 중 (실시간 20초)" : "wasm 인코딩 중"}
+              </p>
+              <div className="h-1.5 bg-indigo-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all"
+                  style={{ width: `${Math.round(currentPhase.ratio * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 슬롯별 결과 */}
+          {(doneCount > 0 || Object.keys(errors).length > 0 || Object.keys(scheduledMark).length > 0) && (
+            <div className="space-y-1.5">
+              {readySlots.map((s) => {
+                const idx = s.slotIndex;
+                const blob = videos[idx];
+                const scheduled = scheduledMark[idx];
+                const err = errors[idx];
+                if (!blob && !scheduled && !err) return null;
+
+                return (
+                  <div key={s.id} className="px-3 py-2.5 bg-pearl-50 rounded-lg space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {scheduled ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      ) : err ? (
+                        <span className="text-red-500 text-xs">⚠</span>
+                      ) : (
+                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      )}
+                      <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">#{idx + 1}</span>
+                      <span className="text-sm text-gray-700 truncate flex-1">{s.fileName}</span>
+
+                      {scheduled ? (
+                        <span className="text-[11px] text-emerald-600 font-medium">
+                          예약됨 · {formatScheduledTime(scheduled)}
+                        </span>
+                      ) : blob ? (
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => saveToPc(idx)}
+                            className="text-xs px-3 py-1 rounded-lg bg-pearl-200 text-gray-700 hover:bg-pearl-300 transition-colors font-medium"
+                            title="PC에 저장"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => setScheduleUiSlot(scheduleUiSlot === idx ? null : idx)}
+                            className="text-xs px-3 py-1 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors font-medium"
+                          >
+                            예약 발행
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* 예약 입력 인라인 패널 */}
+                    {scheduleUiSlot === idx && blob && (
+                      <div className="flex items-center gap-2 pl-6">
+                        <input
+                          type="datetime-local"
+                          value={scheduleAtBySlot[idx] ?? defaultScheduleTime()}
+                          onChange={(e) => setScheduleAtBySlot((prev) => ({ ...prev, [idx]: e.target.value }))}
+                          className="text-xs px-2 py-1 rounded border border-pearl-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={() => schedulePublish(idx)}
+                          className="text-xs px-3 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 font-medium"
+                        >
+                          확정
+                        </button>
+                        <button
+                          onClick={() => setScheduleUiSlot(null)}
+                          className="text-xs px-2 py-1 rounded text-gray-500 hover:text-gray-700"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    )}
+
+                    {err && <p className="text-[11px] text-red-500 pl-6">{err}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
       )}
     </div>
   );
+}
+
+/** datetime-local input의 기본값 — 현재 + 1시간을 "YYYY-MM-DDTHH:MM" 포맷으로 */
+function defaultScheduleTime(): string {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatScheduledTime(localStr: string): string {
+  const d = new Date(localStr);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 
