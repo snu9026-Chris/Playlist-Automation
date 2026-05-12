@@ -68,26 +68,20 @@ export async function renderShortsFrames(opts: RenderFramesOpts): Promise<Blob[]
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
 
-  // ── 3. 오디오 셋업 (음소거 실시간 재생) ──
-  const audioUrl = URL.createObjectURL(audioBlob);
-  const audioEl = new Audio();
-  audioEl.src = audioUrl;
-  audioEl.crossOrigin = "anonymous";
-  audioEl.preload = "auto";
-
-  // canplaythrough 이벤트 대기 — readyState >= 4 확인
-  await new Promise<void>((resolve, reject) => {
-    audioEl.oncanplaythrough = () => resolve();
-    audioEl.onerror = () => reject(new Error("audio load failed"));
-    audioEl.load();
-  });
-
+  // ── 3. 오디오 셋업 (BufferSource — 디코드 후 그래프에 직접 박음) ──
+  // 이전 MediaElementSource + gain(0) 조합은 일부 브라우저에서 AnalyserNode가 안 깨워져
+  // freqData가 0으로 고정되는 문제 발생. BufferSource는 media element 의존성이 없어 안정적.
   const audioCtx = new AudioContext();
-  const source = audioCtx.createMediaElementSource(audioEl);
+  const arrayBuffer = await audioBlob.arrayBuffer();
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = audioBuffer;
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
   const muteGain = audioCtx.createGain();
-  muteGain.gain.value = 0; // 완전 음소거. 재생되지만 소리 안 남.
+  // 완전 0이면 일부 브라우저가 그래프 처리를 skip할 수 있어 -60dB(0.001)로 사실상 무음.
+  muteGain.gain.value = 0.001;
 
   source.connect(analyser);
   analyser.connect(muteGain);
@@ -95,7 +89,7 @@ export async function renderShortsFrames(opts: RenderFramesOpts): Promise<Blob[]
 
   // ── 4. 재생 시작 + 프레임 캡처 ──
   await audioCtx.resume();
-  await audioEl.play();
+  source.start();
   const startTime = performance.now();
 
   const frames: Blob[] = [];
@@ -137,9 +131,7 @@ export async function renderShortsFrames(opts: RenderFramesOpts): Promise<Blob[]
       onProgress?.(f / totalFrames);
     }
   } finally {
-    audioEl.pause();
-    audioEl.src = "";
-    URL.revokeObjectURL(audioUrl);
+    try { source.stop(); } catch { /* already stopped */ }
     await audioCtx.close().catch(() => {});
   }
 
