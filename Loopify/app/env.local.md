@@ -6,6 +6,18 @@
 
 ---
 
+## 0. NEXT_PUBLIC_BASE_URL (앱 자신의 도메인)
+
+```
+NEXT_PUBLIC_BASE_URL=http://localhost:3002
+```
+
+- **용도**: OAuth 콜백·외부 redirect가 여기로 돌아옵니다. **클론 사용자 필수**.
+- **값**:
+  - 로컬: `http://localhost:3002`
+  - 배포: `https://<본인 vercel 도메인>` (예: `https://my-playlist-bot.vercel.app`)
+- **주의**: 비워두면 코드 기본값(`https://myloopify.vercel.app` — 원본 저자 사이트)으로 떨어집니다. **반드시 본인 값으로 설정**.
+
 ## 1. Supabase
 
 ```
@@ -41,7 +53,9 @@ GOOGLE_CLIENT_SECRET=
 
 - **용도**: 생성한 영상을 사용자 YouTube에 자동 업로드
 - **발급**: https://console.cloud.google.com → 사용자 인증 정보 → OAuth 2.0 클라이언트 ID
-- **Redirect URI**: `http://localhost:3000/api/auth/callback/google`, `https://<프로덕션>/api/auth/callback/google`
+- **Redirect URI** (실제 코드 라우트 — 끝에 `/google` 같은 서픽스 없음):
+  - 로컬: `http://localhost:3002/api/auth/callback`
+  - 배포: `https://<본인 vercel 도메인>/api/auth/callback`
 - **Scopes**: `youtube.upload` (필요 시 `youtube.force-ssl`)
 - **공유**: Loopdrop과 같은 OAuth 클라이언트 재사용 가능 (Redirect URI만 추가)
 

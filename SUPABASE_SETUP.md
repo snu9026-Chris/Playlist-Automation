@@ -78,6 +78,7 @@ Supabase MCP 도구 목록을 보면:
 | 5 | SQL Editor | New Query → `Loopify/app/supabase-schema.sql` 붙여넣고 **Run** |
 | 6 | SQL Editor | New Query → `Loopify/app/supabase-migration-soft-delete.sql` 붙여넣고 **Run** |
 | 7 | SQL Editor | New Query → `Loopify/app/supabase-migration-scheduled-uploads.sql` 붙여넣고 **Run** |
+| 7-1 | SQL Editor | New Query → `Loopify/app/supabase-migration-platforms.sql` 붙여넣고 **Run** (외부 클론 사용자만 — YouTube OAuth 토큰 저장용) |
 | 8 | Settings → API | **Project URL** 복사 → `.env.local`의 `NEXT_PUBLIC_SUPABASE_URL` |
 | 9 | Settings → API | **anon public** 복사 → `.env.local`의 `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | 10 | Settings → API | **service_role** (reveal) 복사 → `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY` |
@@ -144,8 +145,10 @@ Supabase MCP 도구 목록을 보면:
 - `playlist_tracks` — 슬롯별 진행 상태 (mp3/이미지/숏폼/메타데이터)
 - `scheduled_uploads` — 예약 발행 큐 (영상 파일 경로 + YouTube 메타)
 
-### Loopdrop이 이미 만들어 둔 테이블 (재사용)
-- `platforms` — YouTube OAuth 토큰 저장소 (Loopify가 직접 만들지 않음. 이미 존재한다고 가정)
+### 외부 플랫폼 OAuth 토큰 저장소
+- `platforms` — YouTube OAuth 토큰 저장소.
+  - 원본 저자는 Loopdrop 프로젝트에서 이 테이블을 공유받아 쓰지만,
+  - **외부 클론 사용자**는 아래 마이그레이션 #4(`supabase-migration-platforms.sql`)를 적용해서 본인 Supabase에 직접 만들어야 한다.
 
 ### 적용 순서
 
@@ -156,6 +159,7 @@ Supabase Dashboard → SQL Editor → 새 쿼리 → 아래 파일들을 **순�
 | 1 | `Loopify/app/supabase-schema.sql` | 4개 테이블 + 인덱스 + `updated_at` 자동 갱신 트리거 |
 | 2 | `Loopify/app/supabase-migration-soft-delete.sql` | 프로젝트 소프트 삭제 (`deleted_at` 컬럼 + status `'deleted'`) |
 | 3 | `Loopify/app/supabase-migration-scheduled-uploads.sql` | 예약 업로드 컬럼 확장 + Storage `media` 버킷 + RLS 정책 |
+| 4 | `Loopify/app/supabase-migration-platforms.sql` | `platforms` 테이블 (외부 클론 사용자만 필요 — YouTube OAuth 토큰 저장) |
 
 > 모두 `IF NOT EXISTS` / `IF NOT NULL` 등으로 멱등하게 작성되어 있어, 이미 적용된 환경에서 다시 돌려도 안전.
 
@@ -211,20 +215,7 @@ Loopify는 `Loopify/app/src/lib/supabase.ts`의 두 클라이언트로 접근.
 
 ## 6. 자주 막히는 포인트
 
-- **`platforms` 테이블 없음 에러** → 이 레포에는 `platforms` DDL이 포함돼 있지 않다 (Loopdrop 쪽에서 만든 테이블 재사용 구조). 외부 클론 사용자는 임시로 아래 최소 스키마로 직접 만들 것:
-  ```sql
-  CREATE TABLE IF NOT EXISTS platforms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL UNIQUE,            -- 예: 'youtube'
-    access_token TEXT,
-    refresh_token TEXT,
-    expires_at TIMESTAMPTZ,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  );
-  ```
-  > 정확한 컬럼 구조는 `Loopify/app/src/lib/youtube-auth.ts`와 `Loopify/app/src/app/api/auth/callback/route.ts`에서 사용 패턴 보고 맞출 것.
+- **`platforms` 테이블 없음 에러** → 마이그레이션 #4 (`Loopify/app/supabase-migration-platforms.sql`)를 Supabase SQL Editor에 실행하면 해결됨. 실제 코드는 `oauth_token` / `status` / `account_name` 컬럼을 쓰므로, 다른 곳에서 본 임시 스키마(`access_token` 등)와 헷갈리지 말 것.
 - **YouTube 업로드 시 401/403** → `platforms` 테이블에 토큰이 없거나 만료. `/setup` 또는 OAuth 재연결 플로우 필요.
 - **Storage 업로드 403** → 마이그레이션 #3의 RLS 정책이 미적용. `media` 버킷 정책 다시 확인.
 - **`service_role` 키를 `NEXT_PUBLIC_*`에 넣은 경우** → 브라우저로 노출되니 즉시 키 회전(rotate) 후 서버 전용으로 다시 분리.

@@ -10,21 +10,29 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 
+// 이 파일 위치 기준 절대경로 — cwd 의존성 제거 (어디서 실행해도 동일)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const PORT = 4100;
-const OUTPUT_DIR = path.join("C:", "Users", "USER", "Desktop", "Playlist Automation", "output");
-const TEMP_DIR = path.join(process.cwd(), "local-server", "temp");
+
+// 출력 폴더: 환경변수 OUTPUT_DIR 우선, 없으면 레포 루트의 output/
+// (render-server.mjs는 <repo>/Loopify/app/local-server/render-server.mjs 에 위치)
+const OUTPUT_DIR = process.env.OUTPUT_DIR
+  || path.resolve(__dirname, "..", "..", "..", "output");
+const TEMP_DIR = path.join(__dirname, "temp");
 const BASE_URL = `http://localhost:${PORT}`;
 
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-// FFmpeg — MP3 concat 전용으로 유지
-const FFMPEG = process.env.FFMPEG_PATH
-  || "C:\\Users\\USER\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1-full_build\\bin\\ffmpeg.exe";
+// FFmpeg — MP3 concat 전용. 환경변수 FFMPEG_PATH 우선, 없으면 시스템 PATH의 "ffmpeg".
+// macOS·Linux·다른 PC의 Windows 어디든 PATH에 ffmpeg가 있으면 그대로 잡힘.
+const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 
 try {
   execSync(`"${FFMPEG}" -version`, { stdio: "pipe" });
