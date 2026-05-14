@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { analyzeAudioPeak, extractClip } from "@/lib/audio-analyzer";
 import { projectsApi } from "@/lib/api/projects";
+import { lyricsApi } from "@/lib/api/lyrics";
 import type { Project, TrackSlot } from "@/lib/types";
 
 const SLOT_COUNT = 15;
@@ -21,6 +22,10 @@ export function useShorts() {
   const [activeStep, setActiveStep] = useState(1);
   /** key는 TrackSlot.id (안정 키). slotIndex는 표시순서일 뿐이라 사용 금지. */
   const [lyrics, setLyrics] = useState<Record<string, string>>({});
+  /** 가사 자동 추출 진행 중인 슬롯들 (slotId) */
+  const [extractingLyrics, setExtractingLyrics] = useState<Set<string>>(new Set());
+  /** 전체 일괄 추출 진행 중 플래그 */
+  const [extractingAllLyrics, setExtractingAllLyrics] = useState(false);
 
   const filledCount = useMemo(() => slots.filter((s) => s.file).length, [slots]);
   const analyzedCount = useMemo(() => slots.filter((s) => s.clip).length, [slots]);
@@ -125,6 +130,61 @@ export function useShorts() {
     setActiveStep(2);
   }, [slots, selectedId, updateSlotById]);
 
+  /**
+   * 단일 슬롯의 mp3 클립에서 가사 자동 추출 (Gemini 멀티모달).
+   * 호출 측에서 기존 가사 덮어쓰기 confirm을 처리한다.
+   */
+  const extractLyricsForSlot = useCallback(
+    async (slotId: string): Promise<string | null> => {
+      const slot = slots.find((s) => s.id === slotId);
+      if (!slot?.clipBlob || !selectedId) return null;
+
+      setExtractingLyrics((prev) => {
+        const next = new Set(prev);
+        next.add(slotId);
+        return next;
+      });
+
+      try {
+        const result = await lyricsApi.extract({
+          projectId: selectedId,
+          slotIndex: slot.slotIndex,
+          clipBlob: slot.clipBlob,
+        });
+        const text = result.lyrics ?? "";
+        setLyrics((prev) => ({ ...prev, [slotId]: text }));
+        return text;
+      } catch (e) {
+        console.error(`가사 추출 실패 slot ${slot.slotIndex}:`, e);
+        return null;
+      } finally {
+        setExtractingLyrics((prev) => {
+          const next = new Set(prev);
+          next.delete(slotId);
+          return next;
+        });
+      }
+    },
+    [slots, selectedId],
+  );
+
+  /**
+   * 클립이 준비된 모든 슬롯에 대해 순차 추출.
+   * 순차 처리 이유: Gemini rate limit + 한 번에 15개 동시 호출 시 일부 실패 위험.
+   */
+  const extractAllLyrics = useCallback(async () => {
+    const targets = slots.filter((s) => s.clipBlob);
+    if (targets.length === 0) return;
+    setExtractingAllLyrics(true);
+    try {
+      for (const slot of targets) {
+        await extractLyricsForSlot(slot.id);
+      }
+    } finally {
+      setExtractingAllLyrics(false);
+    }
+  }, [slots, extractLyricsForSlot]);
+
   return {
     // state
     selectedId,
@@ -133,6 +193,8 @@ export function useShorts() {
     activeStep,
     analyzingAll,
     lyrics,
+    extractingLyrics,
+    extractingAllLyrics,
     // derived
     filledCount,
     analyzedCount,
@@ -146,5 +208,7 @@ export function useShorts() {
     analyzeAll,
     setLyrics,
     setActiveStep,
+    extractLyricsForSlot,
+    extractAllLyrics,
   };
 }

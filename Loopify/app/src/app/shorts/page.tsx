@@ -42,9 +42,11 @@ export default function ShortsPage() {
   const {
     selectedId, selectedTheme, slots, activeStep,
     analyzingAll, lyrics: shortsLyrics, setLyrics: setShortsLyrics,
+    extractingLyrics, extractingAllLyrics,
     filledCount, analyzedCount, imagesReady,
     selectProject, reset, setFiles: handleFiles, reorderFilled,
     updateSlotById, analyzeAll, setActiveStep,
+    extractLyricsForSlot, extractAllLyrics,
   } = shorts;
 
   // 프리셋 설정 — eq 스타일은 로컬 영속화, 활성 프리셋은 toggle Set
@@ -323,20 +325,73 @@ export default function ShortsPage() {
                 {/* 가사 입력 (가사 프리셋 활성 시) — 안정 id 기준 매핑 */}
                 {shortsPresets.has("lyrics") && (
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500">가사 입력 (곡별)</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium text-gray-500">가사 입력 (곡별)</p>
+                      {/* 일괄 자동 추출 — 클립이 준비된 슬롯들만 대상 */}
+                      <button
+                        type="button"
+                        disabled={extractingAllLyrics || slots.filter(s => s.clipBlob).length === 0}
+                        onClick={async () => {
+                          const hasAny = slots.some(s => s.clipBlob && (shortsLyrics[s.id] || "").trim());
+                          if (hasAny) {
+                            const ok = window.confirm("이미 입력된 가사가 있습니다. 자동 추출 결과로 덮어쓸까요?");
+                            if (!ok) return;
+                          }
+                          await extractAllLyrics();
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        title="Gemini 멀티모달로 mp3 클립에서 가사 받아쓰기"
+                      >
+                        {extractingAllLyrics ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            추출 중...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3 h-3" />
+                            모든 곡 가사 자동 추출
+                          </>
+                        )}
+                      </button>
+                    </div>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {slots.filter(s => s.imageUrl).map(s => (
-                        <div key={s.id} className="flex items-start gap-2">
-                          <span className="text-[10px] font-bold tabular-nums text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded mt-1">#{s.slotIndex + 1}</span>
-                          <textarea
-                            value={shortsLyrics[s.id] || ""}
-                            onChange={(e) => setShortsLyrics(prev => ({ ...prev, [s.id]: e.target.value }))}
-                            placeholder="가사를 입력하세요 (줄바꿈으로 구분)"
-                            rows={2}
-                            className="flex-1 px-3 py-2 rounded-lg border border-pearl-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
-                          />
-                        </div>
-                      ))}
+                      {slots.filter(s => s.imageUrl).map(s => {
+                        const isExtracting = extractingLyrics.has(s.id);
+                        const canExtract = !!s.clipBlob;
+                        return (
+                          <div key={s.id} className="flex items-start gap-2">
+                            <span className="text-[10px] font-bold tabular-nums text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded mt-1">#{s.slotIndex + 1}</span>
+                            <textarea
+                              value={shortsLyrics[s.id] || ""}
+                              onChange={(e) => setShortsLyrics(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              placeholder="가사를 입력하세요 (줄바꿈으로 구분)"
+                              rows={2}
+                              className="flex-1 px-3 py-2 rounded-lg border border-pearl-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                            />
+                            <button
+                              type="button"
+                              disabled={!canExtract || isExtracting || extractingAllLyrics}
+                              onClick={async () => {
+                                const existing = (shortsLyrics[s.id] || "").trim();
+                                if (existing) {
+                                  const ok = window.confirm("이 곡의 기존 가사를 자동 추출 결과로 덮어쓸까요?");
+                                  if (!ok) return;
+                                }
+                                await extractLyricsForSlot(s.id);
+                              }}
+                              title={canExtract ? "이 곡 가사 자동 추출" : "클립 분석이 먼저 필요합니다"}
+                              className="p-1.5 rounded-md hover:bg-indigo-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors mt-0.5"
+                            >
+                              {isExtracting ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
