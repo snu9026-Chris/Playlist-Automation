@@ -25,14 +25,16 @@ export default function DesignGalleryPage() {
   const [watermarkChannel, setWatermarkChannel] = useLocalState<string>("loopify_watermark_channel", "");
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10">
-      <div className="space-y-10">
+    <div className="space-y-10">
+      <PageHeader>
         <header className="space-y-2">
           <h1 className="text-3xl font-bold text-gray-900">디자인 갤러리</h1>
           <p className="text-sm text-gray-500">
             이퀄라이저와 플레이어 컨트롤러 디자인을 골라 보세요. 선택한 디자인은 즉시 숏폼/롱폼 작업에 적용됩니다.
           </p>
         </header>
+      </PageHeader>
+      <div className="max-w-6xl mx-auto space-y-10">
 
         {/* 이퀄라이저 갤러리 */}
         <section className="space-y-4">

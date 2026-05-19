@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { bookmarksApi } from "@/lib/api/bookmarks";
 import { apiFetchSafe } from "@/lib/api/client";
+import PageHeader from "@/components/layout/PageHeader";
 
 interface SpotifyTrack {
   id: string;
@@ -148,10 +149,8 @@ export default function ExplorePage() {
   };
 
   return (
-    <div className="flex gap-6">
-      {/* 왼쪽: 트렌드 메인 */}
-      <div className="flex-1 min-w-0 space-y-6">
-        {/* 페이지 헤더 */}
+    <div className="space-y-6">
+      <PageHeader>
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
             <ArrowLeft className="w-4 h-4" />
@@ -159,7 +158,11 @@ export default function ExplorePage() {
           </Link>
           <h1 className="text-xl font-bold">트렌드 탐색</h1>
         </div>
+      </PageHeader>
 
+      <div className="flex gap-6">
+      {/* 왼쪽: 트렌드 메인 */}
+      <div className="flex-1 min-w-0 space-y-6">
         {/* 검색 + 필터 */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
@@ -293,6 +296,7 @@ export default function ExplorePage() {
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

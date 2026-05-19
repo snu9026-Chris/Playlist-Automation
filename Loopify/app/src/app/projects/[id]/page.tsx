@@ -99,8 +99,8 @@ export default function ProjectDetailPage() {
 
       {/* 우측 콘텐츠 */}
       <div className="flex-1 space-y-8 min-w-0">
-        {/* 상단 헤더 */}
-        <div className="p-6 rounded-xl bg-white border border-pearl-200">
+        {/* 상단 헤더 — 스크롤해도 main 스크롤 컨테이너 최상단에 붙도록 sticky */}
+        <div className="p-6 rounded-xl bg-white border border-pearl-200 sticky top-0 z-30">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">{project.theme}</h1>
