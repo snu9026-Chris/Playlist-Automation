@@ -22,7 +22,7 @@ export default function LongformPage() {
   const [imageCount, setImageCount] = useState(4);
   const [projectTheme, setProjectTheme] = useState("");
   const [generatingImages, setGeneratingImages] = useState(false);
-  const [eqType, setEqType] = useState<EqualizerType>("glass");
+  const [eqType, setEqType] = useState<EqualizerType>("white");
   const [loopType, setLoopType] = useState<LoopType>("crossfade");
   const [overlays, setOverlays] = useState<OverlayItem[]>([]);
   const [previewing, setPreviewing] = useState(false);
@@ -322,9 +322,9 @@ export default function LongformPage() {
             <div className="space-y-2">
               <p className="text-xs font-medium text-gray-500">이퀄라이저 스타일</p>
               <div className="flex flex-wrap gap-2">
-                {(["glass", "symmetric", "circle", "pulse"] as EqualizerType[]).map((t) => {
+                {(["white", "neon", "color"] as EqualizerType[]).map((t) => {
                   const labels: Record<EqualizerType, string> = {
-                    glass: "글래스", symmetric: "대칭 스펙트럼", circle: "원형", pulse: "펄스",
+                    white: "화이트 글래스", neon: "네온 글로우", color: "컬러 그라데이션",
                   };
                   return (
                     <button

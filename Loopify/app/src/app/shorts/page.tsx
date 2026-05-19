@@ -50,7 +50,13 @@ export default function ShortsPage() {
   } = shorts;
 
   // 프리셋 설정 — eq 스타일은 로컬 영속화, 활성 프리셋은 toggle Set
-  const [shortsEqType, setShortsEqType] = useLocalState<ShortsEqType>("loopify_eq_type", "glass");
+  const [shortsEqType, setShortsEqType] = useLocalState<ShortsEqType>("loopify_eq_type", "white");
+  // 2026-05 EQ 리뉴얼 — 옛 값(glass/circle/pulse/symmetric)이 localStorage에 남아있으면 "white"로 마이그레이션
+  useEffect(() => {
+    if (shortsEqType !== "white" && shortsEqType !== "neon" && shortsEqType !== "color") {
+      setShortsEqType("white");
+    }
+  }, [shortsEqType, setShortsEqType]);
   const presetSet = useToggleSet<ShortsPreset>(["eq"]);
   const shortsPresets = presetSet.set;
   const togglePreset = presetSet.toggle;
@@ -285,8 +291,8 @@ export default function ShortsPage() {
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-gray-500">이퀄라이저 스타일</p>
                   <div className="flex gap-2">
-                    {(["glass", "symmetric", "circle", "pulse"] as ShortsEqType[]).map(t => {
-                      const labels: Record<ShortsEqType, string> = { glass: "글래스", symmetric: "대칭", circle: "원형", pulse: "펄스" };
+                    {(["white", "neon", "color"] as ShortsEqType[]).map(t => {
+                      const labels: Record<ShortsEqType, string> = { white: "화이트 글래스", neon: "네온 글로우", color: "컬러 그라데이션" };
                       return (
                         <button key={t} onClick={() => setShortsEqType(t)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
@@ -528,12 +534,71 @@ function ImageGenStep({
   const [generatingSlotId, setGeneratingSlotId] = useState<string | null>(null);
   const [generatedCount, setGeneratedCount] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // 직접 업로드 — AI 생성 대신 파일을 9:16 중앙 크롭해서 슬롯에 매핑
+  const [uploading, setUploading] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const slotsWithFiles = slots.filter((s) => s.file);
   const totalSlots = slotsWithFiles.length;
   const promptedCount = slotsWithFiles.filter((s) => (prompts[s.id] || "").trim()).length;
   const imgReady = slots.filter((s) => s.imageUrl).length;
   const canGenerate = promptedCount > 0;
+
+  // 업로드 이미지를 1080×1920 9:16으로 중앙 크롭. 가로/세로/정사각 모두 받아 일그러짐 없이 변환.
+  const cropTo9x16 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("파일을 읽지 못했습니다"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("이미지 디코드 실패"));
+        img.onload = () => {
+          const TW = 1080, TH = 1920;
+          const targetRatio = TW / TH;
+          const srcRatio = img.width / img.height;
+          let sx = 0, sy = 0, sw = img.width, sh = img.height;
+          if (srcRatio > targetRatio) {
+            sw = img.height * targetRatio;
+            sx = (img.width - sw) / 2;
+          } else if (srcRatio < targetRatio) {
+            sh = img.width / targetRatio;
+            sy = (img.height - sh) / 2;
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = TW;
+          canvas.height = TH;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Canvas 2D context 사용 불가"));
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, TW, TH);
+          resolve(canvas.toDataURL("image/jpeg", 0.92));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
+  // 선택된 파일들을 슬롯 순서대로 매핑. 슬롯 수 초과분은 무시.
+  const handleUploadFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList).slice(0, slotsWithFiles.length);
+    setUploading(true);
+    setUploadedCount(0);
+    setErrors({});
+    for (let i = 0; i < files.length; i++) {
+      const slot = slotsWithFiles[i];
+      try {
+        const dataUrl = await cropTo9x16(files[i]);
+        onImageGenerated(slot.id, dataUrl);
+      } catch (e: any) {
+        setErrors((prev) => ({ ...prev, [slot.id]: e?.message || "업로드 실패" }));
+      }
+      setUploadedCount(i + 1);
+    }
+    setUploading(false);
+    // 같은 파일 다시 선택할 수 있도록 input 초기화
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+  };
 
   const setPrompt = (slotId: string, value: string) => {
     setPrompts((prev) => ({ ...prev, [slotId]: value }));
@@ -664,6 +729,28 @@ function ImageGenStep({
                 <><ImageIcon className="w-4 h-4" /> {promptedCount}장 이미지 생성</>
               )}
             </button>
+
+            {/* AI 생성 대신 직접 업로드 — 곡 순서대로 슬롯에 자동 매핑되고 9:16 중앙 크롭됨 */}
+            <button
+              onClick={() => uploadInputRef.current?.click()}
+              disabled={uploading || totalSlots === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-pearl-200 text-gray-700 text-sm font-semibold hover:bg-pearl-50 disabled:opacity-50 shadow-sm"
+              title="가지고 있는 이미지를 직접 올려서 슬롯에 매핑 (9:16 중앙 크롭)"
+            >
+              {uploading ? (
+                <><Loader2 className="w-4 h-4 animate-spin text-emerald-500" /> 업로드 중... ({uploadedCount}/{totalSlots})</>
+              ) : (
+                <><Upload className="w-4 h-4 text-emerald-500" /> 이미지 업로드</>
+              )}
+            </button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => handleUploadFiles(e.target.files)}
+            />
 
             {!canGenerate && totalSlots > 0 && (
               <span className="text-[11px] text-gray-400">먼저 프롬프트 추천을 받으세요</span>

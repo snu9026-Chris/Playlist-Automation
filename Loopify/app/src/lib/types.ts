@@ -1,7 +1,7 @@
 /* ─── 공통 타입 정의 ─── */
 
-// 이퀄라이저
-export type EqualizerType = "glass" | "circle" | "pulse" | "symmetric";
+// 이퀄라이저 — 3종 (2026-05 리뉴얼: 시각 임팩트 강화)
+export type EqualizerType = "white" | "neon" | "color";
 
 // 이미지 전환
 export type LoopType = "crossfade" | "zoom" | "slide";
@@ -94,10 +94,9 @@ export const LONGFORM_PRESETS: PresetDefinition[] = [
 
 // 이퀄라이저 라벨
 export const EQ_LABELS: Record<EqualizerType, string> = {
-  glass: "글래스",
-  symmetric: "대칭 스펙트럼",
-  circle: "원형",
-  pulse: "펄스",
+  white: "화이트 글래스",
+  neon: "네온 글로우",
+  color: "컬러 그라데이션",
 };
 
 // 오버레이 위치 라벨
