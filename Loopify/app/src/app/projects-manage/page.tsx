@@ -14,6 +14,7 @@ import {
   Music,
 } from "lucide-react";
 import { projectsApi } from "@/lib/api/projects";
+import PageHeader from "@/components/layout/PageHeader";
 
 const RESTORE_WINDOW_MS = 30 * 60 * 1000;
 
@@ -100,12 +101,14 @@ export default function ProjectsManagePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> 대시보드
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">프로젝트 관리</h1>
-      </div>
+      <PageHeader>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> 대시보드
+          </Link>
+          <h1 className="text-xl font-bold text-gray-900">프로젝트 관리</h1>
+        </div>
+      </PageHeader>
 
       <div className="flex gap-6">
         {/* 왼쪽: 프로젝트 리스트 */}

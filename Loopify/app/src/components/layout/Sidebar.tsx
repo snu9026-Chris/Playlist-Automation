@@ -109,10 +109,24 @@ function IconLongform({ className }: { className?: string }) {
   );
 }
 
+function IconPalette({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className ?? "w-6 h-6"}>
+      <defs><linearGradient id="ic-pal" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#06b6d4" /><stop offset="100%" stopColor="#ec4899" /></linearGradient></defs>
+      <circle cx="12" cy="12" r="9" fill="url(#ic-pal)" opacity="0.18" />
+      <circle cx="8" cy="9" r="1.7" fill="#06b6d4" />
+      <circle cx="15" cy="8" r="1.7" fill="#8b5cf6" />
+      <circle cx="17" cy="13.5" r="1.7" fill="#ec4899" />
+      <circle cx="11" cy="16" r="1.7" fill="#f59e0b" />
+    </svg>
+  );
+}
+
 const subMenu = [
   { label: "프로젝트 관리", href: "/projects-manage", icon: IconProjects },
   { label: "숏폼 만들기", href: "/shorts", icon: IconShorts },
   { label: "롱폼 만들기", href: "/longform", icon: IconLongform },
+  { label: "디자인 갤러리", href: "/design-gallery", icon: IconPalette },
   { label: "업로드 / 예약", href: "/uploads", icon: IconUpload },
 ];
 

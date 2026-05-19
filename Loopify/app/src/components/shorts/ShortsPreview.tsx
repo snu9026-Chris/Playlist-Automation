@@ -3,17 +3,20 @@
 import { useEffect, useRef } from "react";
 import { Play, Pause } from "lucide-react";
 import type { TrackSlot, ShortsPreset } from "@/lib/types";
-import { drawEqualizer, drawShortsPlayerBar, drawShortsLyrics } from "@/lib/canvas-draw";
+import { drawEqualizer, drawShortsPlayerBar, drawShortsLyrics, drawWatermark } from "@/lib/canvas-draw";
 import { useAudioVisualizer } from "@/hooks/useAudioVisualizer";
 
 const W = 270;
 const H = 480;
 
 export function ShortsPreview({
-  slot, eqType, presets, lyrics,
+  slot, eqType, playerBarStyle = "iconic", watermarkStyle = "none", watermarkChannel, presets, lyrics,
 }: {
   slot: TrackSlot | null;
   eqType: string;
+  playerBarStyle?: string;
+  watermarkStyle?: string;
+  watermarkChannel?: string;
   presets: Set<ShortsPreset>;
   lyrics: string;
 }) {
@@ -41,9 +44,15 @@ export function ShortsPreview({
 
       if (presets.has("eq")) drawEqualizer(ctx, eqType, freqData, W, H);
       if (presets.has("lyrics") && lyrics) drawShortsLyrics(ctx, lyrics, W, H, elapsed);
-      if (presets.has("player-bar")) drawShortsPlayerBar(ctx, W, H, elapsed);
+      if (presets.has("player-bar")) drawShortsPlayerBar(ctx, W, H, elapsed, playerBarStyle);
+      if (watermarkStyle && watermarkStyle !== "none") {
+        drawWatermark(ctx, W, H, elapsed, watermarkStyle, {
+          channelName: watermarkChannel,
+          trackTitle: slot?.fileName?.replace(/\.mp3$/i, ""),
+        });
+      }
     },
-    deps: [slot?.imageUrl, eqType, presets, lyrics],
+    deps: [slot?.imageUrl, eqType, playerBarStyle, watermarkStyle, watermarkChannel, presets, lyrics],
   });
 
   if (!slot?.imageUrl) return null;

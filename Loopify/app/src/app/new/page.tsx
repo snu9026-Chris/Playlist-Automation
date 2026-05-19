@@ -15,6 +15,7 @@ import {
 import { bookmarksApi } from "@/lib/api/bookmarks";
 import { projectsApi } from "@/lib/api/projects";
 import { apiFetch } from "@/lib/api/client";
+import PageHeader from "@/components/layout/PageHeader";
 
 export default function NewProjectPageWrapper() {
   return (
@@ -192,19 +193,22 @@ function NewProjectPage() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="space-y-8">
       {/* 헤더 */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.push("/")}
-          className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          대시보드
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">새 프로젝트</h1>
-      </div>
+      <PageHeader>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push("/")}
+            className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            대시보드
+          </button>
+          <h1 className="text-xl font-bold text-gray-900">새 프로젝트</h1>
+        </div>
+      </PageHeader>
 
+      <div className="max-w-4xl mx-auto space-y-8">
       {/* Stepper */}
       <div className="flex items-center gap-4">
         {[
@@ -522,6 +526,7 @@ function NewProjectPage() {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

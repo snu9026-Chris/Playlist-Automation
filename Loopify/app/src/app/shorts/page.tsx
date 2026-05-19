@@ -19,8 +19,10 @@ import {
   Pause,
   Sparkles,
 } from "lucide-react";
-import type { Project, TrackSlot, EqualizerType, ShortsPreset } from "@/lib/types";
+import type { Project, TrackSlot, EqualizerType, ShortsPreset, PlayerBarStyle, WatermarkStyle } from "@/lib/types";
+import { EQ_LABELS, PLAYER_BAR_LABELS, WATERMARK_LABELS } from "@/lib/types";
 import { ShortsPreview } from "@/components/shorts/ShortsPreview";
+import PageHeader from "@/components/layout/PageHeader";
 import { projectsApi } from "@/lib/api/projects";
 import { imagesApi } from "@/lib/api/images";
 import { useShorts } from "@/hooks/useShorts";
@@ -50,13 +52,20 @@ export default function ShortsPage() {
   } = shorts;
 
   // 프리셋 설정 — eq 스타일은 로컬 영속화, 활성 프리셋은 toggle Set
-  const [shortsEqType, setShortsEqType] = useLocalState<ShortsEqType>("loopify_eq_type", "white");
-  // 2026-05 EQ 리뉴얼 — 옛 값(glass/circle/pulse/symmetric)이 localStorage에 남아있으면 "white"로 마이그레이션
+  const [shortsEqType, setShortsEqType] = useLocalState<ShortsEqType>("loopify_eq_type", "spike");
+  // 옛 EQ 값이 localStorage에 남아있으면 기본값으로 마이그레이션
   useEffect(() => {
-    if (shortsEqType !== "white" && shortsEqType !== "neon" && shortsEqType !== "color") {
-      setShortsEqType("white");
-    }
+    if (!(shortsEqType in EQ_LABELS)) setShortsEqType("spike");
   }, [shortsEqType, setShortsEqType]);
+  // 플레이어바 스타일 — 디자인 갤러리에서 선택. 로컬 영속화.
+  const [playerBarStyle, setPlayerBarStyle] = useLocalState<PlayerBarStyle>("loopify_player_bar_style", "iconic");
+  useEffect(() => {
+    const valid = ["iconic", "minimal"];
+    if (!valid.includes(playerBarStyle)) setPlayerBarStyle("iconic");
+  }, [playerBarStyle, setPlayerBarStyle]);
+  // 워터마크 스타일 + 채널명 — 디자인 갤러리에서 선택.
+  const [watermarkStyle] = useLocalState<WatermarkStyle>("loopify_watermark_style", "none");
+  const [watermarkChannel] = useLocalState<string>("loopify_watermark_channel", "");
   const presetSet = useToggleSet<ShortsPreset>(["eq"]);
   const shortsPresets = presetSet.set;
   const togglePreset = presetSet.toggle;
@@ -98,12 +107,25 @@ export default function ShortsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> 대시보드
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">숏폼 만들기</h1>
-      </div>
+      <PageHeader className="space-y-3">
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> 대시보드
+          </Link>
+          <h1 className="text-xl font-bold text-gray-900">숏폼 만들기</h1>
+        </div>
+        {selectedId && (
+          <div className="flex items-center justify-between">
+            <button
+              onClick={reset}
+              className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700"
+            >
+              <ArrowLeft className="w-4 h-4" /> 프로젝트 다시 선택
+            </button>
+            <span className="text-sm font-medium text-gray-500">{selectedTheme}</span>
+          </div>
+        )}
+      </PageHeader>
 
       {/* 프로젝트 미선택 */}
       {!selectedId ? (
@@ -138,16 +160,6 @@ export default function ShortsPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={reset}
-              className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700"
-            >
-              <ArrowLeft className="w-4 h-4" /> 프로젝트 다시 선택
-            </button>
-            <span className="text-sm font-medium text-gray-500">{selectedTheme}</span>
-          </div>
-
           {/* ───── Step 1: Suno MP3 업로드 (브라우저 로컬) ───── */}
           <div className="pearl-card p-5 space-y-4">
             <div className="flex items-center gap-3">
@@ -287,24 +299,19 @@ export default function ShortsPage() {
 
             {imagesReady > 0 && (
               <>
-                {/* 이퀄라이저 스타일 */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-500">이퀄라이저 스타일</p>
-                  <div className="flex gap-2">
-                    {(["white", "neon", "color"] as ShortsEqType[]).map(t => {
-                      const labels: Record<ShortsEqType, string> = { white: "화이트 글래스", neon: "네온 글로우", color: "컬러 그라데이션" };
-                      return (
-                        <button key={t} onClick={() => setShortsEqType(t)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                            shortsEqType === t
-                              ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm"
-                              : "bg-pearl-100 text-gray-500 hover:bg-pearl-200"
-                          }`}>
-                          {labels[t]}
-                        </button>
-                      );
-                    })}
+                {/* 디자인 안내 — 갤러리에서 선택한 값 표시 */}
+                <div className="flex items-center justify-between bg-pearl-50 rounded-lg px-3 py-2.5">
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <p>이퀄라이저: <span className="font-semibold text-indigo-600">{EQ_LABELS[shortsEqType]}</span></p>
+                    <p>컨트롤러: <span className="font-semibold text-indigo-600">{PLAYER_BAR_LABELS[playerBarStyle]}</span></p>
+                    <p>워터마크: <span className="font-semibold text-indigo-600">{WATERMARK_LABELS[watermarkStyle]}</span></p>
                   </div>
+                  <Link
+                    href="/design-gallery"
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
+                  >
+                    디자인 갤러리에서 변경 →
+                  </Link>
                 </div>
 
                 {/* 프리셋 토글 */}
@@ -409,6 +416,9 @@ export default function ShortsPage() {
                     <ShortsPreview
                       slot={previewSlot}
                       eqType={shortsEqType}
+                      playerBarStyle={playerBarStyle}
+                      watermarkStyle={watermarkStyle}
+                      watermarkChannel={watermarkChannel}
                       presets={shortsPresets}
                       lyrics={previewSlot ? (shortsLyrics[previewSlot.id] || "") : ""}
                     />
@@ -424,6 +434,9 @@ export default function ShortsPage() {
             slots={slots}
             projectId={selectedId}
             eqType={shortsEqType}
+            playerBarStyle={playerBarStyle}
+            watermarkStyle={watermarkStyle}
+            watermarkChannel={watermarkChannel}
             presets={shortsPresets}
             lyrics={shortsLyrics}
           />
@@ -839,6 +852,9 @@ function RenderStep({
   slots,
   projectId,
   eqType,
+  playerBarStyle,
+  watermarkStyle,
+  watermarkChannel,
   presets,
   lyrics,
 }: {
@@ -846,6 +862,9 @@ function RenderStep({
   slots: TrackSlot[];
   projectId: string;
   eqType: string;
+  playerBarStyle: string;
+  watermarkStyle: string;
+  watermarkChannel: string;
   presets: Set<ShortsPreset>;
   /** key는 TrackSlot.id (안정 키). slotIndex 사용 금지. */
   lyrics: Record<string, string>;
@@ -884,6 +903,10 @@ function RenderStep({
           audioBlob: slot.clipBlob!,
           imageUrl: slot.imageUrl!,
           eqType: presets.has("eq") ? eqType : "none",
+          playerBarStyle,
+          watermarkStyle,
+          watermarkChannel,
+          watermarkTrack: slot.fileName.replace(/\.mp3$/i, ""),
           presets: presets as Set<string>,
           lyrics: presets.has("lyrics") ? (lyrics[slot.id] || "") : "",
           onProgress: (r) => setCurrentPhase({ slotIndex: slot.slotIndex, phase: "frames", ratio: r }),

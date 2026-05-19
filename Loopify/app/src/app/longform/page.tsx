@@ -8,12 +8,15 @@ import {
 } from "lucide-react";
 import type {
   EqualizerType, LoopType, OverlayItem,
-  Mp3File, GeneratedImage,
+  Mp3File, GeneratedImage, PlayerBarStyle, WatermarkStyle,
 } from "@/lib/types";
+import { EQ_LABELS, PLAYER_BAR_LABELS, WATERMARK_LABELS } from "@/lib/types";
+import { useLocalState } from "@/hooks/useLocalState";
 import { fileToBase64, compressImage, cropTo16x9, downloadImage, getAudioDuration, formatTime } from "@/lib/image-utils";
 import { StepBadge } from "@/components/shared/StepBadge";
 import { PreviewCanvas } from "@/components/longform/PreviewCanvas";
 import { OverlayEditor } from "@/components/longform/OverlayEditor";
+import PageHeader from "@/components/layout/PageHeader";
 import { imagesApi } from "@/lib/api/images";
 
 export default function LongformPage() {
@@ -22,7 +25,11 @@ export default function LongformPage() {
   const [imageCount, setImageCount] = useState(4);
   const [projectTheme, setProjectTheme] = useState("");
   const [generatingImages, setGeneratingImages] = useState(false);
-  const [eqType, setEqType] = useState<EqualizerType>("white");
+  // 디자인 갤러리에서 선택한 값을 그대로 사용 (localStorage 영속화 + 자동 동기)
+  const [eqType] = useLocalState<EqualizerType>("loopify_eq_type", "spike");
+  const [playerBarStyle] = useLocalState<PlayerBarStyle>("loopify_player_bar_style", "iconic");
+  const [watermarkStyle] = useLocalState<WatermarkStyle>("loopify_watermark_style", "none");
+  const [watermarkChannel] = useLocalState<string>("loopify_watermark_channel", "");
   const [loopType, setLoopType] = useState<LoopType>("crossfade");
   const [overlays, setOverlays] = useState<OverlayItem[]>([]);
   const [previewing, setPreviewing] = useState(false);
@@ -175,12 +182,14 @@ export default function LongformPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> 대시보드
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">롱폼 만들기</h1>
-      </div>
+      <PageHeader>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> 대시보드
+          </Link>
+          <h1 className="text-xl font-bold text-gray-900">롱폼 만들기</h1>
+        </div>
+      </PageHeader>
 
       {/* ── Step 1: MP3 업로드 ── */}
       <div className="pearl-card p-5 space-y-4">
@@ -318,29 +327,19 @@ export default function LongformPage() {
 
         {selectedImages.length > 0 && (
           <>
-            {/* 이퀄라이저 타입 */}
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-500">이퀄라이저 스타일</p>
-              <div className="flex flex-wrap gap-2">
-                {(["white", "neon", "color"] as EqualizerType[]).map((t) => {
-                  const labels: Record<EqualizerType, string> = {
-                    white: "화이트 글래스", neon: "네온 글로우", color: "컬러 그라데이션",
-                  };
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setEqType(t)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        eqType === t
-                          ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm"
-                          : "bg-pearl-100 text-gray-500 hover:bg-pearl-200"
-                      }`}
-                    >
-                      {labels[t]}
-                    </button>
-                  );
-                })}
+            {/* 디자인 안내 — 갤러리에서 선택한 값 표시 */}
+            <div className="flex items-center justify-between bg-pearl-50 rounded-lg px-3 py-2.5">
+              <div className="text-xs text-gray-500 space-y-0.5">
+                <p>이퀄라이저: <span className="font-semibold text-indigo-600">{EQ_LABELS[eqType]}</span></p>
+                <p>컨트롤러: <span className="font-semibold text-indigo-600">{PLAYER_BAR_LABELS[playerBarStyle]}</span></p>
+                <p>워터마크: <span className="font-semibold text-indigo-600">{WATERMARK_LABELS[watermarkStyle]}</span></p>
               </div>
+              <Link
+                href="/design-gallery"
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
+              >
+                디자인 갤러리에서 변경 →
+              </Link>
             </div>
 
             {/* 오버레이 설정 */}
@@ -352,6 +351,9 @@ export default function LongformPage() {
               overlays={overlays}
               audioFile={mp3s[0]?.file}
               eqType={eqType}
+              playerBarStyle={playerBarStyle}
+              watermarkStyle={watermarkStyle}
+              watermarkChannel={watermarkChannel}
             />
           </>
         )}

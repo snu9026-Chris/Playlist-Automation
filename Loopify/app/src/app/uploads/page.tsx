@@ -20,6 +20,7 @@ import { useYouTubeAuth } from "@/hooks/useYouTubeAuth";
 import { youtubeApi } from "@/lib/api/youtube";
 import { apiFetchSafe } from "@/lib/api/client";
 import { createBrowserClient } from "@/lib/supabase";
+import PageHeader from "@/components/layout/PageHeader";
 
 // 예약 발행 시각 — vercel.json cron이 매일 09:00 UTC(=KST 18:00)에 실행되므로 동일 시각으로 박는다.
 // cron 시간을 바꾸면 vercel.json + 여기 둘 다 같이 갱신할 것.
@@ -244,12 +245,14 @@ export default function UploadsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> 대시보드
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">업로드 / 예약</h1>
-      </div>
+      <PageHeader>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> 대시보드
+          </Link>
+          <h1 className="text-xl font-bold text-gray-900">업로드 / 예약</h1>
+        </div>
+      </PageHeader>
 
       <div className="flex gap-6">
         {/* ── 왼쪽: 영상 파일 + 메타데이터 편집 ── */}

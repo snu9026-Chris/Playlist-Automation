@@ -18,6 +18,7 @@ import {
   drawEqualizer,
   drawShortsLyrics,
   drawShortsPlayerBar,
+  drawWatermark,
 } from "./canvas-draw";
 
 const W = 1080;
@@ -38,6 +39,14 @@ export interface RenderFramesOpts {
   imageUrl: string;
   /** 이퀄라이저 스타일 — 미리보기와 동일 키 */
   eqType: string;
+  /** 플레이어바 스타일 (iconic/minimal). 기본 iconic */
+  playerBarStyle?: string;
+  /** 워터마크 스타일 (none/rotating-circle/marquee/...). 기본 none */
+  watermarkStyle?: string;
+  /** 워터마크 채널명 (옵션) */
+  watermarkChannel?: string;
+  /** 워터마크 트랙명 (옵션) */
+  watermarkTrack?: string;
   /** 활성 프리셋 set */
   presets: Set<string>;
   /** 가사 (presets에 "lyrics" 포함된 경우만 사용) */
@@ -54,7 +63,7 @@ export interface RenderFramesOpts {
  * @returns PNG Blob 배열 (순서대로). ffmpeg-shorts.encodeShortsMp4에 그대로 넘기면 됨.
  */
 export async function renderShortsFrames(opts: RenderFramesOpts): Promise<Blob[]> {
-  const { audioBlob, imageUrl, eqType, presets, lyrics, fps = 30, onProgress } = opts;
+  const { audioBlob, imageUrl, eqType, playerBarStyle = "iconic", watermarkStyle = "none", watermarkChannel, watermarkTrack, presets, lyrics, fps = 30, onProgress } = opts;
   const totalFrames = CLIP_DURATION * fps;
 
   // ── 1. 배경 이미지 로드 (CORS 대응) ──
@@ -121,7 +130,13 @@ export async function renderShortsFrames(opts: RenderFramesOpts): Promise<Blob[]
       ctx.scale(OVERLAY_SCALE, OVERLAY_SCALE);
       if (presets.has("eq")) drawEqualizer(ctx, eqType, freqData, PREVIEW_W, PREVIEW_H);
       if (presets.has("lyrics") && lyrics) drawShortsLyrics(ctx, lyrics, PREVIEW_W, PREVIEW_H, elapsed);
-      if (presets.has("player-bar")) drawShortsPlayerBar(ctx, PREVIEW_W, PREVIEW_H, elapsed);
+      if (presets.has("player-bar")) drawShortsPlayerBar(ctx, PREVIEW_W, PREVIEW_H, elapsed, playerBarStyle);
+      if (watermarkStyle && watermarkStyle !== "none") {
+        drawWatermark(ctx, PREVIEW_W, PREVIEW_H, elapsed, watermarkStyle, {
+          channelName: watermarkChannel,
+          trackTitle: watermarkTrack,
+        });
+      }
       ctx.restore();
 
       // ── JPEG로 캡처 (PNG보다 10~20배 작아 메모리 부담↓, 시각 품질 차이 미미) ──

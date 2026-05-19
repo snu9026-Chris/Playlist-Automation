@@ -1,7 +1,18 @@
 /* ─── 공통 타입 정의 ─── */
 
-// 이퀄라이저 — 3종 (2026-05 리뉴얼: 시각 임팩트 강화)
-export type EqualizerType = "white" | "neon" | "color";
+// 이퀄라이저 — 5종 (사용자 확정)
+export type EqualizerType = "spike" | "neon-dots" | "neon-ring" | "neon-rotor" | "neon-arc";
+
+// 플레이어바 스타일 — 2종 (사용자 확정)
+export type PlayerBarStyle = "iconic" | "minimal";
+
+// 워터마크 스타일 — 4종 (사용자 확정) + none
+export type WatermarkStyle =
+  | "none"
+  | "rotating-circle"  // 원형 회전 텍스트
+  | "marquee"          // 가로 흐르는 곡 목록
+  | "minimal-line"     // 좌하단 옅은 한 줄
+  | "dot-progress";    // 도트 패턴 진행률
 
 // 이미지 전환
 export type LoopType = "crossfade" | "zoom" | "slide";
@@ -94,9 +105,26 @@ export const LONGFORM_PRESETS: PresetDefinition[] = [
 
 // 이퀄라이저 라벨
 export const EQ_LABELS: Record<EqualizerType, string> = {
-  white: "화이트 글래스",
-  neon: "네온 글로우",
-  color: "컬러 그라데이션",
+  "spike": "스파이크",
+  "neon-dots": "방사형 도트",
+  "neon-ring": "펄스 링",
+  "neon-rotor": "회전 로터",
+  "neon-arc": "좌우 호",
+};
+
+// 플레이어바 스타일 라벨
+export const PLAYER_BAR_LABELS: Record<PlayerBarStyle, string> = {
+  iconic: "아이코닉 컴팩트",
+  minimal: "미니멀 라인",
+};
+
+// 워터마크 라벨
+export const WATERMARK_LABELS: Record<WatermarkStyle, string> = {
+  "none": "사용 안함",
+  "rotating-circle": "회전 원형 텍스트",
+  "marquee": "흐르는 곡 목록",
+  "minimal-line": "좌하단 라인",
+  "dot-progress": "도트 진행률",
 };
 
 // 오버레이 위치 라벨

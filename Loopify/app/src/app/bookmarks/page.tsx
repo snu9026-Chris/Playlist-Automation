@@ -11,6 +11,7 @@ import {
   ChevronRight as ChevronR,
 } from "lucide-react";
 import { bookmarksApi, type BookmarkRow as Bookmark } from "@/lib/api/bookmarks";
+import PageHeader from "@/components/layout/PageHeader";
 
 export default function BookmarksPage() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -46,24 +47,26 @@ export default function BookmarksPage() {
   return (
     <div className="space-y-6">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> 대시보드
-          </Link>
-          <h1 className="text-xl font-bold text-gray-900">북마크</h1>
-          <span className="text-sm text-gray-400 tabular-nums">{bookmarks.length}곡</span>
+      <PageHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
+              <ArrowLeft className="w-4 h-4" /> 대시보드
+            </Link>
+            <h1 className="text-xl font-bold text-gray-900">북마크</h1>
+            <span className="text-sm text-gray-400 tabular-nums">{bookmarks.length}곡</span>
+          </div>
+          {bookmarks.length >= 3 && (
+            <Link
+              href="/new?from=bookmarks"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 transition-all shadow-sm"
+            >
+              이 북마크로 프로젝트 시작
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
         </div>
-        {bookmarks.length >= 3 && (
-          <Link
-            href="/new?from=bookmarks"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 transition-all shadow-sm"
-          >
-            이 북마크로 프로젝트 시작
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        )}
-      </div>
+      </PageHeader>
 
       {loading ? (
         <div className="animate-pulse pearl-card h-40" />

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { createServerClient } from "@/lib/supabase";
 import ProjectCard from "@/components/ProjectCard";
+import PageHeader from "@/components/layout/PageHeader";
 
 interface PlaylistProject {
   id: string;
@@ -61,9 +62,9 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* 페이지 헤더 */}
-      <div>
+      <PageHeader>
         <h1 className="text-2xl font-bold text-gray-900">대시보드</h1>
-      </div>
+      </PageHeader>
 
       {/* 빠른 액션 카드 2개 */}
       <div className="grid grid-cols-2 gap-5">

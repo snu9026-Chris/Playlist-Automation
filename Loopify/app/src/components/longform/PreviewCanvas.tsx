@@ -3,19 +3,23 @@
 import { useEffect, useRef } from "react";
 import { Play, Pause } from "lucide-react";
 import type { OverlayItem } from "@/lib/types";
-import { drawPresetOverlay, drawEqualizer } from "@/lib/canvas-draw";
+import { drawPresetOverlay, drawEqualizer, drawWatermark } from "@/lib/canvas-draw";
 import { useAudioVisualizer } from "@/hooks/useAudioVisualizer";
 
 const W = 640;
 const H = 360;
 
 export function PreviewCanvas({
-  images, overlays, audioFile, eqType,
+  images, overlays, audioFile, eqType, playerBarStyle = "iconic",
+  watermarkStyle = "none", watermarkChannel,
 }: {
   images: string[];
   overlays: OverlayItem[];
   audioFile?: File;
   eqType: string;
+  playerBarStyle?: string;
+  watermarkStyle?: string;
+  watermarkChannel?: string;
 }) {
   const loadedImgs = useRef<HTMLImageElement[]>([]);
   const overlayImgs = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -81,7 +85,7 @@ export function PreviewCanvas({
         ctx.globalAlpha = ov.opacity / 100;
 
         if (ov.isPreset) {
-          drawPresetOverlay(ctx, ov, W, H, m, elapsed);
+          drawPresetOverlay(ctx, ov, W, H, m, elapsed, playerBarStyle);
           ctx.globalAlpha = 1;
           continue;
         }
@@ -106,8 +110,12 @@ export function PreviewCanvas({
         ctx.drawImage(ovImg, ox, oy, targetW, targetH);
         ctx.globalAlpha = 1;
       }
+
+      if (watermarkStyle && watermarkStyle !== "none") {
+        drawWatermark(ctx, W, H, elapsed, watermarkStyle, { channelName: watermarkChannel });
+      }
     },
-    deps: [images, overlays, eqType],
+    deps: [images, overlays, eqType, playerBarStyle, watermarkStyle, watermarkChannel],
   });
 
   return (

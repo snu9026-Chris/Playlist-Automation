@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Key, Database, Video, Music, Cpu } from "lucide-react";
+import PageHeader from "@/components/layout/PageHeader";
 
 export default function SettingsPage() {
   const envKeys = [
@@ -11,14 +12,17 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> 대시보드
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">설정</h1>
-      </div>
+    <div className="space-y-6">
+      <PageHeader>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> 대시보드
+          </Link>
+          <h1 className="text-xl font-bold text-gray-900">설정</h1>
+        </div>
+      </PageHeader>
 
+      <div className="max-w-3xl space-y-6">
       <section>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">API 연동 상태</h2>
         <div className="space-y-3">
@@ -62,6 +66,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 }
