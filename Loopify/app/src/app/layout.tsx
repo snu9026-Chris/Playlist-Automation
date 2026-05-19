@@ -26,7 +26,7 @@ export default function RootLayout({
         <YouTubeAuthProvider>
           <Header />
           <Sidebar />
-          <main className="ml-72 mt-20 min-h-[calc(100vh-5rem)] overflow-y-auto bg-pearl-100 p-8 pb-16">
+          <main className="ml-72 mt-20 h-[calc(100vh-5rem)] overflow-y-auto bg-pearl-100 p-8 pb-16">
             {children}
           </main>
         </YouTubeAuthProvider>
