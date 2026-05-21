@@ -104,11 +104,12 @@ body {
   animation-play-state: paused;
 }
 
-/* ── Header Pearl Border ── */
-.header-pearl-border {
-  position: relative;
-}
-
+/* ── Header Pearl Border ──
+ * NOTE: position: relative를 여기 두면 Tailwind의 .fixed보다 캐스케이드 뒤에 와서
+ * header의 position: fixed를 relative로 덮어버린다(둘 다 specificity 0,1,0).
+ * 그러면 fixed 헤더가 sticky 동작을 잃는다 — header 자체가 fixed이면
+ * ::after의 absolute는 그 fixed를 containing block으로 잡으므로 relative 불필요.
+ */
 .header-pearl-border::after {
   content: '';
   position: absolute;
