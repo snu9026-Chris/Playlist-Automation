@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -18,7 +19,13 @@ export async function GET() {
   authUrl.searchParams.set("scope", scopes);
   authUrl.searchParams.set("access_type", "offline");
   authUrl.searchParams.set("prompt", "consent");
-  authUrl.searchParams.set("state", "youtube");
+  const state = randomBytes(32).toString("hex");
+  authUrl.searchParams.set("state", state);
 
-  return NextResponse.redirect(authUrl.toString());
+  const response = NextResponse.redirect(authUrl.toString());
+  response.cookies.set("youtube_oauth_state", state, {
+    httpOnly: true, secure: new URL(redirectUri).protocol === "https:",
+    sameSite: "lax", maxAge: 600, path: "/api/auth/callback",
+  });
+  return response;
 }

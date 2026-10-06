@@ -171,6 +171,11 @@ export interface Database {
           tags: string[] | null;
           first_comment: string | null;
           youtube_video_id: string | null;
+          locked_at: string | null;
+          upload_session_url: string | null;
+          upload_started_at: string | null;
+          comment_status: string;
+          comment_locked_at: string | null;
           scheduled_at: string;
           status: string;
           retry_count: number;
