@@ -8,9 +8,11 @@
  */
 
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveMediaFile, isAllowedOrigin } from "./security.mjs";
 import { execSync } from "node:child_process";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -47,7 +49,7 @@ const renderProgress = new Map(); // renderId → { progress: 0~1 }
 
 async function initBundle() {
   console.log("  Remotion 번들 생성 중...");
-  const entryPoint = path.resolve(process.cwd(), "local-server", "remotion", "index.ts");
+  const entryPoint = path.join(__dirname, "remotion", "index.ts");
   bundleLocation = await bundle({
     entryPoint,
     onProgress: (p) => {
@@ -67,8 +69,12 @@ const MIME_MAP = {
 
 // ─── HTTP 서버 ───
 const server = http.createServer(async (req, res) => {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (!isAllowedOrigin(origin, process.env.RENDER_ALLOWED_ORIGINS)) {
+    res.writeHead(403); res.end("Origin denied"); return;
+  }
+  if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Max-Age", "86400");
@@ -92,8 +98,9 @@ const server = http.createServer(async (req, res) => {
 
   // ─── Temp 파일 서빙 (Remotion 헤드리스 Chromium용) ───
   if (req.method === "GET" && req.url?.startsWith("/temp/")) {
-    const fileName = decodeURIComponent(req.url.replace("/temp/", ""));
-    const filePath = path.join(TEMP_DIR, fileName);
+    const fileName = req.url.replace("/temp/", "");
+    const filePath = resolveMediaFile(TEMP_DIR, fileName);
+    if (!filePath) { res.writeHead(400); res.end("Invalid filename"); return; }
     if (fs.existsSync(filePath)) {
       const ext = path.extname(fileName).toLowerCase();
       const mime = MIME_MAP[ext] || "application/octet-stream";
@@ -101,7 +108,6 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, {
         "Content-Type": mime,
         "Content-Length": stat.size,
-        "Access-Control-Allow-Origin": "*",
         "Cache-Control": "no-cache",
       });
       fs.createReadStream(filePath).pipe(res);
@@ -145,7 +151,10 @@ const server = http.createServer(async (req, res) => {
         .slice(0, 60);
       const outputFileName = `${safeName}_highlight.mp4`;
 
-      const id = `${projectId}_slot${slotIndex}`;
+      if (typeof projectId !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(projectId) || !Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 14) {
+        res.writeHead(400); res.end("Invalid project or slot"); return;
+      }
+      const id = `${projectId}_slot${slotIndex}_${crypto.randomUUID()}`;
       const audioFileName = `${id}_audio.wav`;
       const imageFileName = `${id}_image.png`;
       const audioPath = path.join(TEMP_DIR, audioFileName);
@@ -181,7 +190,7 @@ const server = http.createServer(async (req, res) => {
       };
 
       console.log(`  Shorts 렌더링 시작: slot ${slotIndex} (eq=${eqType}, playerBar=${showPlayerBar}, lyrics=${subtitleLines.length}줄)...`);
-      const renderId = `shorts_${id}`;
+      const renderId = `shorts_${projectId}_slot${slotIndex}`;
       renderProgress.set(renderId, { progress: 0 });
 
       const composition = await selectComposition({
@@ -385,8 +394,9 @@ const server = http.createServer(async (req, res) => {
 
   // 렌더링된 파일 다운로드
   if (req.method === "GET" && req.url?.startsWith("/download/")) {
-    const fileName = decodeURIComponent(req.url.replace("/download/", ""));
-    const filePath = path.join(OUTPUT_DIR, fileName);
+    const fileName = req.url.replace("/download/", "");
+    const filePath = resolveMediaFile(OUTPUT_DIR, fileName);
+    if (!filePath) { res.writeHead(400); res.end("Invalid filename"); return; }
     if (fs.existsSync(filePath)) {
       const stat = fs.statSync(filePath);
       res.writeHead(200, {
@@ -404,14 +414,15 @@ const server = http.createServer(async (req, res) => {
 
   // 렌더링된 파일 삭제 — 사용자가 다운로드 완료 후 호출. 디스크 누적 방지.
   if (req.method === "DELETE" && req.url?.startsWith("/download/")) {
-    const fileName = decodeURIComponent(req.url.replace("/download/", ""));
+    const fileName = req.url.replace("/download/", "");
     // path traversal 방지 — 파일명에 슬래시·점점 막음
     if (fileName.includes("/") || fileName.includes("\\") || fileName.includes("..")) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "invalid filename" }));
       return;
     }
-    const filePath = path.join(OUTPUT_DIR, fileName);
+    const filePath = resolveMediaFile(OUTPUT_DIR, fileName);
+    if (!filePath) { res.writeHead(400); res.end("Invalid filename"); return; }
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
@@ -435,7 +446,7 @@ server.timeout = 600000; // 10분 타임아웃
 
 // 서버 시작 + Remotion 번들
 (async () => {
-  server.listen(PORT, () => {
+  server.listen(PORT, "127.0.0.1", () => {
     console.log(`\n  Loopify Render Server (Remotion) on http://localhost:${PORT}`);
     console.log(`   Output: ${OUTPUT_DIR}`);
     console.log(`   Remotion 번들 준비 중...\n`);

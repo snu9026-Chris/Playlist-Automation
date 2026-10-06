@@ -16,7 +16,7 @@ export async function GET() {
     const supabase = createServerClient();
     const { data } = await supabase
       .from("scheduled_uploads")
-      .select("*, playlist_tracks(title, slot_index), playlist_projects(theme)")
+      .select("id, project_id, track_id, title, scheduled_at, status, retry_count, error_message, youtube_video_id, playlist_tracks(title, slot_index), playlist_projects(theme)")
       .order("scheduled_at", { ascending: true });
 
     return NextResponse.json(data ?? []);
@@ -47,6 +47,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!Number.isFinite(Date.parse(scheduledAt)) || Date.parse(scheduledAt) <= Date.now()) {
+    return NextResponse.json({ error: "scheduledAt must be a future timestamp" }, { status: 400 });
+  }
+  if (!/^scheduled\/[a-zA-Z0-9_-]+\.mp4$/.test(videoPath)) {
+    return NextResponse.json({ error: "Invalid scheduled video path" }, { status: 400 });
+  }
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("scheduled_uploads")

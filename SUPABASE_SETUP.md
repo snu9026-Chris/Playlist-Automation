@@ -160,6 +160,7 @@ Supabase Dashboard → SQL Editor → 새 쿼리 → 아래 파일들을 **순�
 | 2 | `Loopify/app/supabase-migration-soft-delete.sql` | 프로젝트 소프트 삭제 (`deleted_at` 컬럼 + status `'deleted'`) |
 | 3 | `Loopify/app/supabase-migration-scheduled-uploads.sql` | 예약 업로드 컬럼 확장 + Storage `media` 버킷 + RLS 정책 |
 | 4 | `Loopify/app/supabase-migration-platforms.sql` | `platforms` 테이블 (외부 클론 사용자만 필요 — YouTube OAuth 토큰 저장) |
+| 5 | `Loopify/app/supabase-migration-upload-recovery.sql` | 관리자 전용 DB 접근, 예약 업로드 선점·복구, 서명 기반 Storage 업로드 |
 
 > 모두 `IF NOT EXISTS` / `IF NOT NULL` 등으로 멱등하게 작성되어 있어, 이미 적용된 환경에서 다시 돌려도 안전.
 
@@ -172,7 +173,7 @@ Supabase Dashboard → SQL Editor → 새 쿼리 → 아래 파일들을 **순�
 | `media` | **public** | 이미지(슬롯 썸네일), 예약 업로드용 mp4 영상 파일 |
 
 - 위 마이그레이션 #3을 실행하면 자동 생성됨.
-- RLS 정책은 **single-user 사이드 프로젝트 가정**으로 anon 자유 select/insert/delete 허용. 다중 사용자 확장 시 `auth.uid()` 기반으로 좁힐 것.
+- 마이그레이션 #5는 anon/authenticated의 앱 테이블 접근과 기존 익명 Storage 업로드/삭제를 차단합니다. 브라우저 업로드는 관리자 API가 발급한 서명을 사용합니다. 공유 `platforms` 테이블과 별도 정책에 대한 적용 조건은 [적용 가이드](Loopify/app/SECURITY_AND_UPLOADS.md)를 확인하세요.
 
 ### 디렉토리 컨벤션 (코드에서 사용 중)
 - `images/{project_id}/{slot_index}-{timestamp}.png` — 슬롯별 이미지

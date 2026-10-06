@@ -172,7 +172,7 @@ export default function UploadsPage() {
   /**
    * 예약 등록 — 각 파일을 Supabase Storage에 올린 뒤 scheduled_uploads 테이블에 row INSERT.
    * 실제 YouTube 업로드는 vercel.json cron(/api/cron/upload)이 정해진 시각에 처리.
-   * 시작일부터 하루 1개씩, cron 시각(SCHEDULED_PUBLISH_HOUR_UTC)에 발행.
+   * 시작일부터 하루 1개씩, 지정 시각(SCHEDULED_PUBLISH_HOUR_UTC)에 발행.
    */
   const registerSchedules = async () => {
     const supabaseBrowser = createBrowserClient();
@@ -188,10 +188,12 @@ export default function UploadsPage() {
 
       try {
         // 1. Supabase Storage 업로드 (파일명 충돌 방지 위해 UUID prefix)
-        const path = `scheduled/${crypto.randomUUID()}.mp4`;
+        const init = await fetch("/api/uploads/storage-init", { method: "POST" });
+        if (!init.ok) throw new Error("Storage authorization failed");
+        const { path, token } = await init.json();
         const { error: uploadError } = await supabaseBrowser.storage
           .from("media")
-          .upload(path, uf.file, { contentType: "video/mp4" });
+          .uploadToSignedUrl(path, token, uf.file, { contentType: "video/mp4" });
         if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
 
         // 2. 예약 시각 = 시작일 + (i × 24h)

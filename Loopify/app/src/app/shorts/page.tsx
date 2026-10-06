@@ -971,14 +971,15 @@ function RenderStep({
     }
 
     try {
-      // Storage 업로드 — anon key + media bucket RLS는 마이그레이션 #3에서 anon 자유 허용
+      // 관리자 API가 발급한 경로에만 업로드 가능한 서명 사용
       const supabase = createBrowserClient();
-      const uuid = crypto.randomUUID();
-      const videoPath = `scheduled/${uuid}.mp4`;
+      const init = await fetch("/api/uploads/storage-init", { method: "POST" });
+      if (!init.ok) throw new Error("Storage authorization failed");
+      const { path: videoPath, token } = await init.json();
 
       const { error: upErr } = await supabase.storage
         .from("media")
-        .upload(videoPath, blob, { contentType: "video/mp4", upsert: false });
+        .uploadToSignedUrl(videoPath, token, blob, { contentType: "video/mp4", upsert: false });
       if (upErr) throw new Error(`Storage upload: ${upErr.message}`);
 
       // scheduled_uploads INSERT (기존 API 재사용)

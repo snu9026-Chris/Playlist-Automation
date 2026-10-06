@@ -11,16 +11,25 @@ export async function GET(req: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://myloopify.vercel.app";
   const redirectUri = `${baseUrl}/api/auth/callback`;
 
+  const savedState = req.cookies.get("youtube_oauth_state")?.value;
+  const redirect = (path: string) => {
+    const response = NextResponse.redirect(`${baseUrl}${path}`);
+    response.cookies.set("youtube_oauth_state", "", { maxAge: 0, path: "/api/auth/callback" });
+    return response;
+  };
+  if (!state || !savedState || state !== savedState) {
+    return redirect("/uploads?error=invalid_state");
+  }
   if (error || !code) {
-    return NextResponse.redirect(`${baseUrl}/uploads?error=oauth_failed`);
+    return redirect("/uploads?error=oauth_failed");
   }
 
-  if (state === "youtube") {
+  if (state === savedState) {
     try {
       const tokenData = await exchangeAuthCode(code, redirectUri);
 
-      if (!tokenData.access_token) {
-        return NextResponse.redirect(`${baseUrl}/uploads?error=token_failed`);
+      if (!tokenData.access_token || !tokenData.refresh_token) {
+        return redirect("/uploads?error=token_failed");
       }
 
       // 사용자 정보 조회
@@ -31,22 +40,23 @@ export async function GET(req: NextRequest) {
 
       // Supabase에 저장 (platforms 테이블 — upsert)
       const supabase = createServerClient();
-      await supabase
+      const { error: saveError } = await supabase
         .from("platforms")
         .upsert({
           name: "youtube",
           status: "connected",
           oauth_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token ?? null,
+          refresh_token: tokenData.refresh_token,
           expires_at: new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000).toISOString(),
           account_name: userData.name ?? "YouTube",
         }, { onConflict: "name" });
 
-      return NextResponse.redirect(`${baseUrl}/uploads?success=youtube`);
+      if (saveError) throw new Error(saveError.message);
+      return redirect("/uploads?success=youtube");
     } catch {
-      return NextResponse.redirect(`${baseUrl}/uploads?error=exception`);
+      return redirect("/uploads?error=exception");
     }
   }
 
-  return NextResponse.redirect(`${baseUrl}/uploads`);
+  return redirect("/uploads");
 }

@@ -32,7 +32,7 @@ npm install
 cp .env.local.example .env.local
 # → .env.local의 키들을 본인 값으로 채우기 (env.local.md 참조)
 
-# 3. Supabase 마이그레이션 4개를 Dashboard SQL Editor에 차례로 실행
+# 3. Supabase 마이그레이션 5개를 Dashboard SQL Editor에 차례로 실행
 #    (SUPABASE_SETUP.md 표 참조)
 
 # 4. 로컬 dev 서버 + 렌더 서버 (Windows)
@@ -52,7 +52,7 @@ Playlist-Automation/
 ├── Loopify/app/                  # 메인 웹앱 (Next.js)
 │   ├── src/                      # 페이지 + API 라우트
 │   ├── local-server/             # Remotion 렌더 서버 (포트 4100)
-│   ├── supabase-*.sql            # DB 마이그레이션 4개
+│   ├── supabase-*.sql            # DB 마이그레이션 5개
 │   ├── .env.local.example        # 환경변수 템플릿
 │   ├── env.local.md              # 키 발급·설정 가이드
 │   └── README.md                 # 앱 레벨 README
@@ -79,3 +79,7 @@ Playlist-Automation/
 ## 라이선스 / 출처
 
 원본: [@snu9026-Chris/Playlist-Automation](https://github.com/snu9026-Chris/Playlist-Automation)
+
+## 관리자 인증 및 예약 업로드
+
+배포 전 [관리자 인증·예약 복구 적용 가이드](Loopify/app/SECURITY_AND_UPLOADS.md)에 따라 새 SQL 마이그레이션, 관리자 환경변수와 Cron 설정을 적용하세요.
